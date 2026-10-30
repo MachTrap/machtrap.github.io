@@ -147,20 +147,6 @@ function setup() {
     },
     { signal },
   );
-  const reveal = new IntersectionObserver(
-    (entries) =>
-      entries.forEach((e) => {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          reveal.unobserve(e.target);
-        }
-      }),
-    { threshold: 0.08 },
-  );
-  document.querySelectorAll('.reveal').forEach((el) => {
-    if (!reduced.matches) el.classList.add('js-reveal');
-    reveal.observe(el);
-  });
   const legacyAnchors: Record<string, string> = {
     '#skill-0': '#mobile',
     '#skill-1': '#systems',
@@ -405,7 +391,6 @@ function setup() {
     stopScroll?.();
     decoder.dispose();
     controller.abort();
-    reveal.disconnect();
     disposers.forEach((d) => d());
   };
 }
