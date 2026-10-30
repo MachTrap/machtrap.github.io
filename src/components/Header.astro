@@ -1,0 +1,81 @@
+---
+import { copy, home, links, type Locale } from '../data/site';
+const { lang } = Astro.props as { lang: Locale };
+const c = copy[lang];
+const other = lang === 'en' ? 'ru' : 'en';
+---
+
+<header class="header">
+  <a class="brand" href={home(lang)} aria-label={`machtrap — ${c.homeLabel}`}>
+    <span class="brand-mark" aria-hidden="true">
+      m<span>·</span>
+    </span>
+  </a>
+  <nav class="desktop-nav" aria-label={c.menu}>
+    <a class="nav-cell" href={`${home(lang)}#skills`}>
+      {c.skills}
+      <span class="plus">↗</span>
+    </a>
+  </nav>
+  <div class="header-end">
+    <a class="locale" href={home(other)} data-language aria-label={c.language}>
+      <span class:list={{ selected: lang === 'en' }}>EN</span>
+      <span class="locale-divider">/</span>
+      <span class:list={{ selected: lang === 'ru' }}>RU</span>
+    </a>
+    <div class="dropdown connect-wrap">
+      <button
+        class="button primary connect"
+        aria-expanded="false"
+        aria-controls="connect-menu"
+      >
+        {c.connect}
+        <span>↗</span>
+      </button>
+      <div id="connect-menu" class="dropdown-panel connect-menu" hidden>
+        <span class="micro" data-decode>
+          // {c.connect}
+        </span>
+        <a href={links.linkedin} target="_blank" rel="noopener noreferrer">
+          LinkedIn <span>↗</span>
+        </a>
+        <a href={links.github} target="_blank" rel="noopener noreferrer">
+          GitHub <span>↗</span>
+        </a>
+        <a href={links.telegram} target="_blank" rel="noopener noreferrer">
+          Telegram <span>↗</span>
+        </a>
+        <a href={`mailto:${links.email}`}>
+          Email <span>↗</span>
+        </a>
+      </div>
+    </div>
+    <button
+      class="menu-toggle"
+      aria-label={c.menu}
+      aria-expanded="false"
+      aria-controls="mobile-menu"
+    >
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+  <div id="mobile-menu" class="mobile-menu" hidden>
+    <a href={`${home(lang)}#skills`}>
+      {c.skills}
+      <span>↓</span>
+    </a>
+    <div class="mobile-social">
+      <a href={links.linkedin} target="_blank" rel="noopener noreferrer">
+        LinkedIn ↗
+      </a>
+      <a href={links.github} target="_blank" rel="noopener noreferrer">
+        GitHub ↗
+      </a>
+      <a href={links.telegram} target="_blank" rel="noopener noreferrer">
+        Telegram ↗
+      </a>
+      <a href={`mailto:${links.email}`}>Email ↗</a>
+    </div>
+  </div>
+</header>

@@ -1,0 +1,57 @@
+---
+import { copy, links, type Locale } from '../data/site';
+const { lang } = Astro.props as { lang: Locale };
+const c = copy[lang];
+---
+
+<dialog
+  class="contact-dialog"
+  id="contact-dialog"
+  aria-labelledby="contact-title"
+  aria-describedby="contact-description"
+  data-application-title={c.applicationTitle}
+  data-hire-title={c.hireTitle}
+>
+  <div class="contact-dialog-top">
+    <span class="micro">// {c.connect}</span>
+    <form method="dialog">
+      <button class="dialog-close" aria-label={c.close} autofocus>
+        ×
+      </button>
+    </form>
+  </div>
+  <h2 id="contact-title">{c.hireTitle}</h2>
+  <p id="contact-description">{c.contactDescription}</p>
+  <div class="contact-options">
+    <a href={links.linkedin} target="_blank" rel="noopener noreferrer">
+      <span class="contact-option-icon" aria-hidden="true">
+        in
+      </span>
+      <span>
+        <strong>LinkedIn</strong>
+        <small>{c.professionalContact}</small>
+      </span>
+      <b aria-hidden="true">↗</b>
+    </a>
+    <a href={`mailto:${links.email}`}>
+      <span class="contact-option-icon" aria-hidden="true">
+        @
+      </span>
+      <span>
+        <strong>Email</strong>
+        <small>{links.email}</small>
+      </span>
+      <b aria-hidden="true">↗</b>
+    </a>
+    <a href={links.telegram} target="_blank" rel="noopener noreferrer">
+      <span class="contact-option-icon" aria-hidden="true">
+        ↗
+      </span>
+      <span>
+        <strong>Telegram</strong>
+        <small>@lucky117</small>
+      </span>
+      <b aria-hidden="true">↗</b>
+    </a>
+  </div>
+</dialog>

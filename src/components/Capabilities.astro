@@ -1,0 +1,391 @@
+---
+import { architectureGraph } from '../data/architecture';
+import { capabilityData } from '../data/capabilities';
+import { copy, type Locale } from '../data/site';
+const { lang } = Astro.props as { lang: Locale };
+const c = capabilityData(lang);
+const graph = architectureGraph(lang, 0);
+const selected = graph.nodes[2];
+---
+
+<section id="skills" class="workbench section" data-scene="skills">
+  <article
+    id="mobile"
+    class="capability mobile-capability"
+    data-capability="mobile"
+  >
+    <div class="capability-heading">
+      <span class="micro" data-decode>
+        {c.mobileLabel}
+      </span>
+      <h2 data-reveal-text>
+        {c.mobileTitle.split('\n').map((l) => (
+          <span>{l}</span>
+        ))}
+      </h2>
+      <p data-reveal-text>{c.mobileIntro}</p>
+      <button
+        type="button"
+        class="button primary capability-action"
+        data-contact="application"
+      >
+        {copy[lang].applicationCta}
+        <span>↗</span>
+      </button>
+    </div>
+    <div class="mobile-showcase" data-mobile-mode="native">
+      <div class="mobile-narrative">
+        <div class="mode-controls" role="group" aria-label={c.mobileLabel}>
+          {c.mobileModes.map((label, i) => (
+            <button
+              aria-pressed={i === 0 ? 'true' : 'false'}
+              data-mobile-switch={i === 0 ? 'native' : 'react'}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div class="mobile-mode-copy">
+          <p data-mobile-description data-reveal-text>
+            {c.nativeText}
+          </p>
+          <div class="technology-line" data-mobile-technologies>
+            <span>Swift</span>
+            <span>SwiftUI</span>
+            <span>UIKit</span>
+            <span>Objective-C</span>
+            <span>Combine / RxSwift</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="coding-experience" data-motion-panel>
+      <div class="coding-topline">
+        <span class="micro" data-decode>
+          {c.demoLabel}
+        </span>
+      </div>
+      <div
+        class="coding-stage"
+        data-coding-region
+        data-demo-phase="0"
+        role="img"
+        aria-label={
+          lang === 'en'
+            ? 'Procedural coding scene: an animated editor alongside a scrolling application preview.'
+            : 'Процедурная сцена: анимированный редактор кода и превью приложения с прокруткой.'
+        }
+      >
+        <div class="coding-fallback" aria-hidden="true">
+          <div class="fallback-editor"></div>
+          <div class="fallback-phone"></div>
+        </div>
+      </div>
+    </div>
+    <div class="specialty-index">
+      <span class="micro" data-decode>
+        {c.specialtyTitle}
+      </span>
+      <div
+        class="specialty-controls"
+        role="group"
+        aria-label={c.specialtyTitle}
+      >
+        {c.specialtyTabs.map((label, i) => (
+          <button
+            data-specialty={i}
+            aria-pressed={i === 0 ? 'true' : 'false'}
+            aria-controls="specialty-content"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div
+        id="specialty-content"
+        class="specialty-content"
+        role="region"
+        aria-label={c.specialtyTitle}
+      >
+        {c.specialtyRows[0].map((row) => (
+          <p data-reveal-text>{row}</p>
+        ))}
+      </div>
+    </div>
+    <div class="mobile-foundation">
+      <span class="micro" data-decode>
+        {c.mobileFoundationLabel}
+      </span>
+      <p data-reveal-text>{c.mobileFoundation}</p>
+      <div class="technology-line">
+        {c.mobileAdditional.map((t) => (
+          <span>{t}</span>
+        ))}
+      </div>
+    </div>
+  </article>
+  <article
+    id="systems"
+    class="capability systems-capability"
+    data-capability="systems"
+  >
+    <div class="capability-heading">
+      <span class="micro" data-decode>
+        {c.systemsLabel}
+      </span>
+      <h2 data-reveal-text>{c.systemsTitle}</h2>
+      <p data-reveal-text>{c.systemsIntro}</p>
+    </div>
+    <div class="systems-showcase" data-scenario="0" data-motion-panel>
+      <div class="scenario-tabs" role="tablist" aria-label={c.systemsLabel}>
+        {c.systemsModes.map((label, i) => (
+          <button
+            role="tab"
+            id={`scenario-tab-${i}`}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            aria-controls="scenario-content"
+            tabindex={i === 0 ? 0 : -1}
+            data-scenario-tab={i}
+          >
+            <span class="micro">0{i + 1}</span>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div
+        id="scenario-content"
+        class="scenario-content"
+        role="tabpanel"
+        aria-labelledby="scenario-tab-0"
+      >
+        <div class="scenario-intro">
+          <h4 data-scenario-title data-reveal-text>
+            {c.scenarios[0].title}
+          </h4>
+          <p data-scenario-description data-reveal-text>
+            {c.scenarios[0].description}
+          </p>
+          <div class="technology-line" data-scenario-tags>
+            {c.scenarios[0].tags.map((t) => (
+              <span>{t}</span>
+            ))}
+          </div>
+        </div>
+        <div
+          class="service-map"
+          role="group"
+          aria-label={
+            lang === 'en'
+              ? 'Explore the backend architecture'
+              : 'Компоненты backend'
+          }
+        >
+          <svg class="service-wires" aria-hidden="true">
+            <defs>
+              <marker
+                id="service-arrow"
+                viewBox="0 0 8 8"
+                refX="7"
+                refY="4"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto-start-reverse"
+              >
+                <path d="M1 1 7 4 1 7" fill="none" stroke="currentColor" />
+              </marker>
+            </defs>
+            <g data-edges></g>
+          </svg>
+          {graph.nodes.map((node, i) => (
+            <button
+              type="button"
+              class={`service-node node-${node.id}`}
+              data-node={node.id}
+              aria-pressed={node.id === 'service' ? 'true' : 'false'}
+              aria-controls="node-explanation"
+            >
+              <span class="service-node-icon" aria-hidden="true">
+                {['↗', '⌘', '{}', '✳', '◫'][i]}
+              </span>
+              <span class="micro" data-node-label>
+                {node.label}
+              </span>
+              <strong data-node-detail>{node.detail}</strong>
+              <i aria-hidden="true"></i>
+            </button>
+          ))}
+        </div>
+        <div id="node-explanation" class="node-explanation">
+          <span class="micro" data-node-title>
+            {selected.label} · {selected.detail}
+          </span>
+          <p id="architecture-node-description" data-node-description>
+            {selected.description}
+          </p>
+          <div class="technology-line" data-node-technologies>
+            {selected.technologies.map((t) => (
+              <span>{t}</span>
+            ))}
+          </div>
+        </div>
+        <span
+          class="sr-only"
+          data-node-announcement
+          role="status"
+          aria-live="polite"
+        ></span>
+      </div>
+    </div>
+    <div class="backend-capabilities">
+      {c.infrastructure.map(([title, text], i) => (
+        <div class="backend-detail" data-motion-panel>
+          <span class="backend-detail-glyph" aria-hidden="true">
+            {['✳', '⌘', '⊕'][i]}
+          </span>
+          <h4 data-reveal-text>{title}</h4>
+          <p data-reveal-text>{text}</p>
+        </div>
+      ))}
+    </div>
+    <div class="backend-stack">
+      <span class="micro" data-decode>
+        {c.additionalLabel}
+      </span>
+      <div class="technology-line">
+        {c.systemTechnologies.map((t) => (
+          <span>{t}</span>
+        ))}
+        <span>ComfyUI / OpenCV</span>
+        <span>Docker Compose</span>
+      </div>
+    </div>
+  </article>
+  <article
+    id="craft"
+    class="capability craft-capability"
+    data-capability="craft"
+  >
+    <div class="capability-heading">
+      <span class="micro" data-decode>
+        {c.craftLabel}
+      </span>
+      <h2 data-reveal-text>
+        {c.craftTitle.split('\n').map((l) => (
+          <span>{l}</span>
+        ))}
+      </h2>
+      <p data-reveal-text>{c.craftIntro}</p>
+    </div>
+    <div class="craft-stage" data-craft-stage="0">
+      <div class="pipeline-controls" role="tablist" aria-label={c.craftLabel}>
+        {c.stages.map((stage, i) => (
+          <button
+            id={`stage-tab-${i}`}
+            role="tab"
+            aria-selected={i === 0 ? 'true' : 'false'}
+            aria-controls="stage-content"
+            tabindex={i === 0 ? 0 : -1}
+            data-stage={i}
+          >
+            <span class="stage-glyph" aria-hidden="true">
+              {['◇', '⌘', '⌁', '↗'][i]}
+            </span>
+            <span>{stage}</span>
+            <span class="stage-line" aria-hidden="true"></span>
+          </button>
+        ))}
+      </div>
+      <div
+        class="craft-content"
+        id="stage-content"
+        role="tabpanel"
+        aria-labelledby="stage-tab-0"
+        tabindex="0"
+      >
+        <div class="craft-diagram" aria-hidden="true">
+          <svg viewBox="0 0 360 240">
+            <defs>
+              <pattern
+                id="craft-grid"
+                width="20"
+                height="20"
+                patternUnits="userSpaceOnUse"
+              >
+                <path
+                  d="M20 0H0v20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-opacity=".08"
+                />
+              </pattern>
+            </defs>
+            <rect width="360" height="240" fill="url(#craft-grid)" />
+            <g class="craft-shape">
+              <rect
+                class="craft-frame"
+                x="68"
+                y="35"
+                width="224"
+                height="170"
+                rx="10"
+              />
+              <path d="M68 65h224" />
+              <circle cx="83" cy="50" r="2" />
+              <circle cx="93" cy="50" r="2" />
+              <circle cx="103" cy="50" r="2" />
+              <rect
+                class="craft-block block-a"
+                x="88"
+                y="85"
+                width="74"
+                height="100"
+                rx="4"
+              />
+              <rect
+                class="craft-block block-b"
+                x="178"
+                y="85"
+                width="94"
+                height="42"
+                rx="4"
+              />
+              <rect
+                class="craft-block block-c"
+                x="178"
+                y="143"
+                width="94"
+                height="42"
+                rx="4"
+              />
+              <path class="craft-wire" d="M125 135H225M225 106v58" />
+              <path class="craft-check" d="m107 139 12 13 28-34" />
+            </g>
+            <g class="craft-registration">
+              <path d="M42 35h13M48 29v12M305 205h13M311 199v12" />
+              <circle cx="180" cy="120" r="100" />
+            </g>
+          </svg>
+        </div>
+        <div class="craft-text">
+          <span class="micro" data-stage-counter>
+            DESIGN / 01
+          </span>
+          <h4 data-stage-title data-reveal-text>
+            {c.stageTitles[0]}
+          </h4>
+          <p data-stage-description data-reveal-text>
+            {c.stageText[0]}
+          </p>
+          <div class="technology-line" data-stage-tools>
+            {c.stageTools[0].map((t) => (
+              <span>{t}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+<script>
+  import '../scripts/capabilities';
+</script>

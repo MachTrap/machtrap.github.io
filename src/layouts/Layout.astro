@@ -1,0 +1,87 @@
+---
+import { ClientRouter, fade } from 'astro:transitions';
+import Header from '../components/Header.astro';
+import ContactDialog from '../components/ContactDialog.astro';
+import { copy, theme, home, type Locale } from '../data/site';
+import '../styles/global.css';
+interface Props {
+  lang: Locale;
+}
+const { lang } = Astro.props;
+const c = copy[lang];
+const route = home;
+const css = `--bg:${theme.background};--fg:${theme.foreground};--accent:${theme.accent};--muted:${theme.muted}`;
+---
+
+<!doctype html>
+<html lang={lang} style={css}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content={theme.background} />
+    <title>{c.title}</title>
+    <meta name="description" content={c.description} />
+    <link rel="canonical" href={new URL(route(lang), Astro.site)} />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href={new URL(route('en'), Astro.site)}
+    />
+    <link
+      rel="alternate"
+      hreflang="ru"
+      href={new URL(route('ru'), Astro.site)}
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={new URL(route('en'), Astro.site)}
+    />
+    <meta property="og:title" content={c.title} />
+    <meta property="og:description" content={c.description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="og:image" content={new URL('/social.png', Astro.site)} />
+    <meta property="og:url" content={new URL(route(lang), Astro.site)} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="preload"
+      href="/fonts/sans-latin-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <noscript>
+      <style>
+        .dropdown:focus-within .dropdown-panel[hidden],
+        .header:focus-within .mobile-menu[hidden] {
+          display: block;
+        }
+      </style>
+    </noscript>
+    <ClientRouter />
+  </head>
+  <body data-page="home" data-locale={lang}>
+    <a href="#main" class="skip">
+      {c.skip}
+    </a>
+    <canvas id="scene" aria-hidden="true" transition:persist="scene"></canvas>
+    <Header lang={lang} />
+    <ContactDialog lang={lang} />
+    <main
+      id="main"
+      tabindex="-1"
+      transition:animate={fade({ duration: '0.5s' })}
+    >
+      <slot />
+    </main>
+    <div class="edge-label" aria-hidden="true">
+      M / ENGINEERING IN MOTION
+    </div>
+    <script>
+      import '../scripts/site';
+    </script>
+  </body>
+</html>

@@ -1,0 +1,95 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Capabilities from './Capabilities.astro';
+import { copy, links, type Locale } from '../data/site';
+const { lang } = Astro.props as { lang: Locale };
+const c = copy[lang];
+---
+
+<Layout lang={lang}>
+  <section class="identity section" data-scene="intro" data-visual="hero">
+    <div class="identity-profile">
+      <span class="micro" data-decode>
+        {c.introLabel}
+      </span>
+    </div>
+    <div class="shader-fallback" aria-hidden="true">
+      <i></i>
+      <i></i>
+      <i></i>
+      <i></i>
+      <i></i>
+    </div>
+    <span class="identity-cross" aria-hidden="true">
+      +
+    </span>
+    <div class="identity-name">
+      <h1>
+        {c.heroTitle.split('\n').map((line) => (
+          <span data-decode>{line}</span>
+        ))}
+      </h1>
+      <p data-reveal-text>{c.heroDescription}</p>
+    </div>
+    <div class="identity-bottom">
+      <a class="identity-scroll micro" href="#skills">
+        ↓ <span data-decode>{c.skills}</span>
+      </a>
+    </div>
+    <span class="interaction-hint micro">{c.interactionHint}</span>
+    <div class="scroll-indicator" aria-hidden="true">
+      <i></i>
+    </div>
+  </section>
+  <Capabilities lang={lang} />
+
+  <footer class="contact-footer section" id="connect">
+    <span class="micro" data-decode>
+      // {c.connect}
+    </span>
+    <div class="contact-invitation">
+      <h2 data-reveal-text>
+        {lang === 'en' ? 'Have something in mind?' : 'Есть задача или идея?'}
+      </h2>
+      <p data-reveal-text>
+        {lang === 'en'
+          ? 'An application to build, a team to join, or a technical challenge to discuss.'
+          : 'Разработать приложение, присоединиться к команде или обсудить техническую задачу.'}
+      </p>
+      <div class="contact-actions">
+        <button type="button" class="button primary" data-contact="application">
+          {c.applicationCta}
+          <span>↗</span>
+        </button>
+        <button type="button" class="button hire-cta" data-contact="hire">
+          {c.hireCta}
+          <span>↗</span>
+        </button>
+      </div>
+    </div>
+    <div class="contact-links">
+      <a
+        href={links.github}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-decode
+      >
+        GitHub ↗
+      </a>
+      <a
+        href={links.linkedin}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-decode
+      >
+        LinkedIn ↗
+      </a>
+    </div>
+    <div class="contact-bottom micro">
+      <span class="brand-lowercase">© {new Date().getFullYear()} machtrap</span>
+      <a href="#main" aria-label={c.homeLabel}>
+        ↑
+      </a>
+    </div>
+  </footer>
+</Layout>
