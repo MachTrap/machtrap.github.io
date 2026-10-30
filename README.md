@@ -28,11 +28,7 @@ The GitHub Actions workflow checks, tests and publishes `dist/` after a push to 
 
 `.local/` contains private research inputs and is ignored; it is never copied into the build. No CV, personal name, analytics or third-party embeds are published. The contact window intentionally exposes the approved email and Telegram link.
 
-## Design provenance
-
-Lambda's AI infrastructure page informed the editorial hierarchy, dropdown structure, quick navigation feedback and RGB-edged button treatment. All site code, graphics and shader effects are original implementations.
-
-Local Shadertoy references informed techniques only: `lccXWH` (brief chromatic displacement), `XcBGDK` (sparse procedural marks), `llcyD2` (bitmap glyph fragments), `3sGyWz` (visible signal/state transitions). `w3tcDf` informed the editor-to-device composition; the new original SDF material uses the shared mint palette and a procedural glyph editor and scrolling phone preview. All graphics are generated in the shader; there are no SwiftUI snippets or haptic shake. No reference GLSL or textures are distributed.
+## Font license
 
 Self-hosted IBM Plex Sans and Mono are distributed under the SIL Open Font License. See `public/fonts/OFL.txt`.
 
