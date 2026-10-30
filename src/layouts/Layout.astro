@@ -17,6 +17,60 @@ const css = `--bg:${theme.background};--fg:${theme.foreground};--accent:${theme.
 <html lang={lang} style={css}>
   <head>
     <meta charset="utf-8" />
+    <script is:inline>
+      (() => {
+        if (window.__machtrapLanguageInitialized) return;
+        window.__machtrapLanguageInitialized = true;
+        const key = 'machtrap-language';
+        let preferred;
+        try {
+          preferred = localStorage.getItem(key);
+        } catch {}
+        if (preferred !== 'en' && preferred !== 'ru') {
+          const language =
+            navigator.languages?.[0] || navigator.language || 'en';
+          preferred = /^ru(?:-|$)/i.test(language) ? 'ru' : 'en';
+        }
+        const current = location.pathname.startsWith('/ru/') ? 'ru' : 'en';
+        if (
+          preferred !== current &&
+          ['/', '/ru/'].includes(location.pathname)
+        ) {
+          location.replace(
+            (preferred === 'ru' ? '/ru/' : '/') +
+              location.search +
+              location.hash,
+          );
+        }
+        // Delegation survives client navigation; capture the choice before routing.
+        document.addEventListener(
+          'click',
+          (event) => {
+            const link =
+              event.target instanceof Element
+                ? event.target.closest('[data-language]')
+                : null;
+            if (
+              !link ||
+              event.defaultPrevented ||
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            )
+              return;
+            preferred = new URL(link.href).pathname.startsWith('/ru/')
+              ? 'ru'
+              : 'en';
+            try {
+              localStorage.setItem(key, preferred);
+            } catch {}
+          },
+          true,
+        );
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content={theme.background} />
     <title>{c.title}</title>
