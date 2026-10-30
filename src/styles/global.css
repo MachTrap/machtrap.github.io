@@ -2068,41 +2068,6 @@ body:has(.contact-dialog[open]) {
   color: var(--muted);
   font-size: 8px;
 }
-.coding-stage {
-  height: 570px;
-  position: relative;
-  isolation: isolate;
-}
-.coding-fallback {
-  display: none;
-}
-body:has(#scene[data-renderer='fallback']) .coding-fallback {
-  display: block;
-  position: absolute;
-  left: 75%;
-  top: 50%;
-  width: 190px;
-  height: 370px;
-  border: 2px solid #8bab9380;
-  border-radius: 26px;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(
-    ellipse at 20% 20%,
-    color-mix(in srgb, var(--accent) 7%, transparent),
-    transparent 65%
-  );
-  z-index: -1;
-}
-.coding-fallback > div {
-  position: absolute;
-  width: 110px;
-  height: 110px;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
-  top: 31%;
-  left: 20%;
-  opacity: 0.5;
-}
 .mobile-foundation {
   margin-top: 35px;
   display: grid;
@@ -2289,9 +2254,6 @@ body:has(#scene[data-renderer='fallback']) .coding-fallback {
   .backend-detail {
     padding: 25px 20px;
   }
-  .coding-stage {
-    height: 500px;
-  }
 }
 @media (max-width: 600px) {
   .workbench > .capability:first-child {
@@ -2317,15 +2279,6 @@ body:has(#scene[data-renderer='fallback']) .coding-fallback {
     max-width: 105px;
     text-align: right;
     font-size: 6px;
-  }
-  .coding-stage {
-    height: 740px;
-  }
-  body:has(#scene[data-renderer='fallback']) .coding-fallback {
-    left: 50%;
-    top: 27%;
-    width: 163px;
-    height: 323px;
   }
   .mobile-foundation {
     grid-template-columns: 1fr;
@@ -2431,69 +2384,7 @@ html[lang='ru'] .identity h1 {
 .scenario-intro > p {
   margin: 0;
 }
-/* The coding study is entirely GPU-rendered: the DOM only supplies its controls. */
-.coding-stage {
-  height: 560px;
-}
-body:has(#scene[data-renderer='fallback']) .coding-fallback {
-  display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 8%;
-  position: absolute;
-  inset: 8%;
-  width: auto;
-  height: auto;
-  border: 0;
-  border-radius: 0;
-  transform: none;
-  background: none;
-  z-index: 0;
-}
-.coding-fallback .fallback-editor {
-  position: static;
-  width: auto;
-  height: auto;
-  border: 1px solid #ffffff20;
-  border-radius: 0;
-  opacity: 1;
-  background: repeating-linear-gradient(
-    transparent 0 13px,
-    color-mix(in srgb, var(--accent) 10%, transparent) 14px 15px,
-    transparent 16px 24px
-  );
-}
-.coding-fallback .fallback-phone {
-  position: static;
-  width: 65%;
-  height: 90%;
-  align-self: center;
-  justify-self: center;
-  border: 2px solid #ffffff35;
-  border-radius: 30px;
-  opacity: 1;
-  background: repeating-linear-gradient(
-    transparent 0 40px,
-    color-mix(in srgb, var(--accent) 8%, transparent) 41px 70px,
-    transparent 71px 90px
-  );
-}
-@media (max-width: 600px) {
-  .coding-stage {
-    height: 650px;
-  }
-  body:has(#scene[data-renderer='fallback']) .coding-fallback {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1.2fr 1fr;
-  }
-  .coding-fallback .fallback-editor {
-    grid-row: 2;
-  }
-  .coding-fallback .fallback-phone {
-    grid-row: 1;
-    grid-column: 1;
-    width: 48%;
-  }
-}
+/* The coding study is GPU-rendered; DOM supplies accessibility and a static fallback. */
 /* Let pointer gestures pass through the hero's words to the sculpture. */
 .identity-name,
 .identity-name * {
@@ -2763,4 +2654,206 @@ body:has(#scene[data-renderer='fallback']) .coding-fallback {
   .service-node.is-receiving > i {
     animation: none;
   }
+}
+/* A GPU workbench with optional inspection; vertical touch remains native scrolling. */
+.coding-stage {
+  position: relative;
+  height: 560px;
+  isolation: isolate;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  outline: none;
+}
+.coding-stage:active {
+  cursor: grabbing;
+}
+.coding-stage:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+.coding-fallback {
+  display: none;
+}
+:is(
+    body:has(#scene[data-renderer='fallback']),
+    body:has(#scene[data-coding-atlas='fallback'])
+  )
+  .coding-fallback {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  align-items: center;
+  gap: 9%;
+  position: absolute;
+  inset: 10% 8%;
+}
+.fallback-editor {
+  padding: 20px;
+  border: 1px solid #ffffff25;
+  background: linear-gradient(135deg, #172019, #0f140f);
+  transform: perspective(900px) rotateY(6deg) rotateZ(-1deg);
+  box-shadow: 0 25px 35px #0004;
+}
+.fallback-editor > span {
+  display: block;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #ffffff20;
+  font: 10px PlexMono;
+  color: var(--muted);
+}
+.fallback-editor > i {
+  display: block;
+  height: 6px;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  margin: 20px 0 20px 12%;
+  width: 66%;
+}
+.fallback-editor > i:nth-child(2) {
+  margin-left: 0;
+  width: 35%;
+}
+.fallback-editor > i:nth-child(4) {
+  width: 48%;
+}
+.fallback-editor > i:last-child {
+  margin-left: 0;
+  width: 12%;
+}
+.fallback-phone {
+  position: relative;
+  max-width: 230px;
+  min-height: 355px;
+  aspect-ratio: 1/2.05;
+  justify-self: center;
+  width: 90%;
+  border: 2px solid #85988a66;
+  border-radius: 30px;
+  background: radial-gradient(
+    ellipse at 15% 5%,
+    color-mix(in srgb, var(--accent) 9%, var(--bg)),
+    var(--bg) 70%
+  );
+  padding: 45px 20px 25px;
+  transform: perspective(900px) rotateY(-7deg);
+  box-shadow:
+    6px 10px 0 #26312a55,
+    0 25px 40px #0004;
+}
+.fallback-notch {
+  position: absolute;
+  top: 16px;
+  left: 36%;
+  right: 36%;
+  height: 8px;
+  border-radius: 20px;
+  background: #000;
+}
+.fallback-phone > strong {
+  font-size: 18px;
+  font-weight: 400;
+}
+.fallback-summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 25px 0;
+  font: 18px PlexMono;
+  color: var(--accent);
+}
+.fallback-summary > i {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  font-style: normal;
+}
+.fallback-task {
+  font-size: 11px;
+  padding: 15px 10px;
+  margin-bottom: 10px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border: 1px solid #ffffff0d;
+}
+.fallback-navigation {
+  display: block;
+  margin-top: 18px;
+  text-align: center;
+  color: var(--accent);
+  font-size: 14px;
+}
+@media (max-width: 1000px) {
+  .coding-stage {
+    height: 760px;
+  }
+  :is(
+      body:has(#scene[data-renderer='fallback']),
+      body:has(#scene[data-coding-atlas='fallback'])
+    )
+    .coding-fallback {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1.8fr 1fr;
+    gap: 6%;
+    inset: 5% 9%;
+  }
+  .fallback-phone {
+    grid-row: 1;
+    grid-column: 1;
+    width: 210px;
+  }
+  .fallback-editor {
+    grid-row: 2;
+    min-width: 0;
+    width: 100%;
+    padding: 15px;
+  }
+  .fallback-editor > i {
+    height: 4px;
+    margin-block: 12px;
+  }
+}
+@media (max-width: 1000px) and (max-height: 500px) and (orientation: landscape) {
+  .coding-stage {
+    height: 500px;
+  }
+  :is(
+      body:has(#scene[data-renderer='fallback']),
+      body:has(#scene[data-coding-atlas='fallback'])
+    )
+    .coding-fallback {
+    grid-template-columns: 1.2fr 1fr;
+    grid-template-rows: 1fr;
+    inset: 8%;
+  }
+  .fallback-phone {
+    grid-column: 2;
+    width: 175px;
+    min-height: 0;
+    padding: 40px 15px 20px;
+  }
+  .fallback-editor {
+    grid-row: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coding-stage {
+    cursor: default;
+  }
+}
+
+#coding {
+  scroll-margin-top: 110px;
+}
+
+/* Keep the introductory label transparent to selection and sculpture gestures. */
+.identity-profile,
+.identity-profile * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.identity-profile {
+  pointer-events: none;
 }

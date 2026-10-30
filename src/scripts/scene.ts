@@ -11,6 +11,14 @@ import {
 import { theme } from '../data/site';
 import { subscribe } from './clock';
 import { clamp } from './motion';
+import { getCodingAtlas, type CodingAtlas } from './coding-atlas';
+import {
+  codingSceneState,
+  codingRotation,
+  type CodingSceneState,
+  type CodingInspection,
+} from './coding-model';
+import type { Locale } from '../data/site';
 import { SurfaceMotion } from './surface-motion';
 const vertex = `#version 300 es\nin vec2 position;void main(){gl_Position=vec4(position,0.,1.);}`;
 export class Scene {
@@ -22,6 +30,14 @@ export class Scene {
   private codingProgram: WebGLProgram | null = null;
   private codingLocations: Record<string, WebGLUniformLocation | null> = {};
   private codingRegion: HTMLElement | null = null;
+  private codingState: CodingSceneState = codingSceneState(0);
+  private codingInspection: CodingInspection = { x: 0, y: 0, pulseAge: 100 };
+  private codingLocale: Locale = 'en';
+  private atlasTexture: WebGLTexture | null = null;
+  private codeTexture: WebGLTexture | null = null;
+  private atlasGeneration = 0;
+  private atlasReady = false;
+  private editorMatrix = codingRotation(0.025, 0.12, -0.025);
   private particleProgram: WebGLProgram | null = null;
   private particleLocations: Record<string, WebGLUniformLocation | null> = {};
   private triangleVao: WebGLVertexArrayObject | null = null;
@@ -135,6 +151,11 @@ export class Scene {
     return Math.min(devicePixelRatio || 1, 1.25);
   }
   private init() {
+    this.atlasGeneration++;
+    this.atlasReady = false;
+    this.canvas.dataset.codingAtlas = 'loading';
+    this.atlasTexture = null;
+    this.codeTexture = null;
     this.program = null;
     this.codingProgram = null;
     this.particleProgram = null;
@@ -229,8 +250,17 @@ export class Scene {
           'viewportOrigin',
           'accent',
           'background',
-          'time',
-          'phase',
+          'sceneTime',
+          'timelineA',
+          'timelineB',
+          'codeState',
+          'inspection',
+          'phoneRotation',
+          'editorRotation',
+          'glyphAtlas',
+          'codeGrid',
+          'atlasReady',
+          'localeIndex',
         ])
           this.codingLocations[key] = gl.getUniformLocation(cp, key);
         gl.useProgram(cp);
@@ -239,6 +269,48 @@ export class Scene {
       } else {
         console.warn('Coding visual fallback:', gl.getProgramInfoLog(cp));
         gl.deleteProgram(cp);
+      }
+      if (this.codingProgram) {
+        // Valid transparent placeholders avoid incomplete samplers while fonts load.
+        this.atlasTexture = gl.createTexture();
+        this.codeTexture = gl.createTexture();
+        for (const [unit, texture] of [
+          [gl.TEXTURE0, this.atlasTexture],
+          [gl.TEXTURE1, this.codeTexture],
+        ] as const) {
+          gl.activeTexture(unit);
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            1,
+            1,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            new Uint8Array(4),
+          );
+        }
+        const generation = this.atlasGeneration;
+        getCodingAtlas()
+          .then((atlas) => {
+            if (
+              this.gl !== gl ||
+              generation !== this.atlasGeneration ||
+              gl.isContextLost()
+            )
+              return;
+            this.uploadCodingAtlas(gl, atlas);
+            this.draw(this.motion.visualTime);
+          })
+          .catch(() => {
+            this.canvas.dataset.codingAtlas = 'fallback';
+          });
       }
       const pvs = make(gl.VERTEX_SHADER, particleVertex),
         pfs = make(gl.FRAGMENT_SHADER, particleFragment),
@@ -293,6 +365,56 @@ export class Scene {
       this.canvas.style.opacity = '0';
     }
   }
+  private uploadCodingAtlas(gl: WebGL2RenderingContext, atlas: CodingAtlas) {
+    const upload = (unit: number, texture: WebGLTexture) => {
+      gl.activeTexture(unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    };
+    this.atlasTexture ??= gl.createTexture();
+    upload(gl.TEXTURE0, this.atlasTexture!);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      atlas.canvas,
+    );
+    this.codeTexture ??= gl.createTexture();
+    upload(gl.TEXTURE1, this.codeTexture!);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.R8,
+      40,
+      24,
+      0,
+      gl.RED,
+      gl.UNSIGNED_BYTE,
+      atlas.code,
+    );
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    this.atlasReady = true;
+    this.canvas.dataset.codingAtlas = 'ready';
+  }
+  setCodingState(
+    state: CodingSceneState,
+    inspection: CodingInspection,
+    locale: Locale,
+  ) {
+    this.codingState = state;
+    this.codingInspection = inspection;
+    this.codingLocale = locale;
+    if (this.reduced.matches) this.draw(0);
+  }
   private resize() {
     const gl = this.gl;
     if (!gl) return;
@@ -315,9 +437,6 @@ export class Scene {
   }
   private particleLimit() {
     return (innerWidth < 800 ? 128 : 256) * (this.density < 0.85 ? 0.5 : 1);
-  }
-  refreshCoding() {
-    this.draw(0);
   }
   setCodingRegion(element: HTMLElement | null) {
     this.codingRegion = element;
@@ -554,7 +673,11 @@ export class Scene {
       gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.SCISSOR_TEST);
     }
-    if (this.codingRegion && this.codingProgram) {
+    if (
+      this.codingRegion &&
+      this.codingProgram &&
+      this.canvas.dataset.codingAtlas !== 'fallback'
+    ) {
       const r = this.codingRegion.getBoundingClientRect(),
         d = this.density;
       if (r.bottom > 0 && r.top < innerHeight) {
@@ -586,11 +709,60 @@ export class Scene {
           Math.round(r.left * d),
           Math.round((innerHeight - r.bottom) * d),
         );
-        gl.uniform1f(this.codingLocations.time, reduced ? 0 : time);
-        gl.uniform1f(
-          this.codingLocations.phase,
-          Number(this.codingRegion.dataset.demoPhase ?? 0),
+        const state = this.reduced.matches
+          ? codingSceneState(21, true)
+          : this.codingState;
+        const input = this.reduced.matches
+          ? { x: 0, y: 0, pulseAge: 100 }
+          : this.codingInspection;
+        gl.uniform1f(this.codingLocations.sceneTime, state.time);
+        gl.uniform4f(
+          this.codingLocations.timelineA,
+          state.assembly,
+          state.detail,
+          state.completion,
+          state.reset,
         );
+        gl.uniform4f(
+          this.codingLocations.timelineB,
+          state.editorReveal,
+          state.signal,
+          state.navigation,
+          0,
+        );
+        gl.uniform3f(
+          this.codingLocations.codeState,
+          state.codeFrom,
+          state.codeTo,
+          state.codeBlend,
+        );
+        gl.uniform3f(
+          this.codingLocations.inspection,
+          input.x,
+          input.y,
+          input.pulseAge,
+        );
+        gl.uniformMatrix3fv(
+          this.codingLocations.phoneRotation,
+          false,
+          codingRotation(-0.025 + input.x, -0.12 + input.y, 0.015),
+        );
+        gl.uniformMatrix3fv(
+          this.codingLocations.editorRotation,
+          false,
+          this.editorMatrix,
+        );
+        gl.uniform1i(
+          this.codingLocations.localeIndex,
+          this.codingLocale === 'ru' ? 1 : 0,
+        );
+        gl.uniform1f(this.codingLocations.atlasReady, this.atlasReady ? 1 : 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
+        gl.uniform1i(this.codingLocations.glyphAtlas, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.codeTexture);
+        gl.uniform1i(this.codingLocations.codeGrid, 1);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         gl.disable(gl.SCISSOR_TEST);
         gl.viewport(0, 0, this.canvas.width, this.canvas.height);

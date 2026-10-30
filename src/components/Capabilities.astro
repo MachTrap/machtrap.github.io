@@ -59,7 +59,7 @@ const selected = graph.nodes[2];
         </div>
       </div>
     </div>
-    <div class="coding-experience" data-motion-panel>
+    <div id="coding" class="coding-experience" data-motion-panel>
       <div class="coding-topline">
         <span class="micro" data-decode>
           {c.demoLabel}
@@ -69,19 +69,50 @@ const selected = graph.nodes[2];
         class="coding-stage"
         data-coding-region
         data-demo-phase="0"
-        role="img"
+        role="group"
+        tabindex="0"
+        aria-describedby="coding-help"
+        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Enter Escape"
         aria-label={
           lang === 'en'
-            ? 'Procedural coding scene: an animated editor alongside a scrolling application preview.'
-            : 'Процедурная сцена: анимированный редактор кода и превью приложения с прокруткой.'
+            ? 'Interactive illustration: edits in a workbench build and refine a Workspace mobile application.'
+            : 'Интерактивная иллюстрация: изменения в редакторе создают и дорабатывают мобильное приложение с задачами.'
         }
       >
         <div class="coding-fallback" aria-hidden="true">
-          <div class="fallback-editor"></div>
-          <div class="fallback-phone"></div>
+          <div class="fallback-editor">
+            <span>workspace.view</span>
+            <i></i>
+            <i></i>
+            <i></i>
+            <i></i>
+            <i></i>
+          </div>
+          <div class="fallback-phone">
+            <span class="fallback-notch"></span>
+            <strong>{lang === 'en' ? 'Workspace' : 'Мои задачи'}</strong>
+            <span class="fallback-summary">
+              3 / 3 <i>✓</i>
+            </span>
+            <div class="fallback-task">
+              ✓ {lang === 'en' ? 'Design review' : 'Проверить дизайн'}
+            </div>
+            <div class="fallback-task">
+              ✓ {lang === 'en' ? 'Build interface' : 'Собрать интерфейс'}
+            </div>
+            <div class="fallback-task">
+              ✓ {lang === 'en' ? 'Release checks' : 'Проверить релиз'}
+            </div>
+            <span class="fallback-navigation">◫　◯　≡</span>
+          </div>
         </div>
       </div>
     </div>
+    <span id="coding-help" class="sr-only">
+      {lang === 'en'
+        ? 'Drag to inspect the phone. Vertical touch gestures scroll the page. Arrow keys tilt, Enter sends a build pulse, and Escape returns to neutral. This is an illustration, not a working application.'
+        : 'Перетащите, чтобы рассмотреть телефон. Вертикальные жесты прокручивают страницу. Стрелки меняют наклон, Enter запускает световой импульс, Escape возвращает исходное положение. Это иллюстрация, а не работающее приложение.'}
+    </span>
     <div class="specialty-index">
       <span class="micro" data-decode>
         {c.specialtyTitle}

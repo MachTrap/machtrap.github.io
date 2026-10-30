@@ -1,8 +1,7 @@
 import { createArchitecture } from './architecture';
 import { capabilityData } from '../data/capabilities';
-import { subscribe } from './clock';
+import { createCodingScene } from './coding-controller';
 let dispose = () => {};
-let sceneElapsed = 0;
 function setup() {
   dispose();
   const root = document.querySelector<HTMLElement>('.workbench');
@@ -11,7 +10,6 @@ function setup() {
   const c = capabilityData(lang);
   const abort = new AbortController(),
     { signal } = abort;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const stops: (() => void)[] = [];
   const reveal = (element: Element) =>
     document.dispatchEvent(
@@ -157,35 +155,12 @@ function setup() {
     fill('[data-stage-tools]', c.stageTools[i]);
     reveal(root.querySelector('.craft-text')!);
   });
-  const demo = root.querySelector<HTMLElement>('[data-coding-region]')!;
-  let visible = false,
-    demoStop: (() => void) | undefined;
-  const schedule = () => {
-    demoStop?.();
-    demoStop = undefined;
-    if (reduced.matches || !visible) return;
-    demoStop = subscribe((dt) => {
-      sceneElapsed += dt;
-      demo.dataset.demoPhase = String(sceneElapsed);
-    });
-  };
-  demo.dataset.demoPhase = String(sceneElapsed);
-  const demoObserver = new IntersectionObserver(
-    (entries) => {
-      visible = entries[0].isIntersecting;
-      schedule();
-    },
-    { threshold: 0.12 },
+  stops.push(
+    createCodingScene(
+      root.querySelector<HTMLElement>('[data-coding-region]')!,
+      lang,
+    ),
   );
-  demoObserver.observe(demo);
-  schedule();
-  const onReduced = () => schedule();
-  reduced.addEventListener('change', onReduced);
-  stops.push(() => {
-    demoObserver.disconnect();
-    demoStop?.();
-    reduced.removeEventListener('change', onReduced);
-  });
   dispose = () => {
     abort.abort();
     stops.forEach((stop) => stop());

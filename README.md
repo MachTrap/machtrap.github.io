@@ -38,7 +38,7 @@ Self-hosted IBM Plex Sans and Mono are distributed under the SIL Open Font Licen
 
 ## Verification
 
-Production build, TypeScript checks and nineteen capability, gesture, particle, and architecture tests pass. Chromium QA covers EN/RU, 360/390/768/844/1440/1920 px widths, scenario/delivery tabs, node selection, reduced motion, WebGL context loss/restoration, fallback and repeated client navigation. The renderer exposes frame timing through canvas data attributes for local QA; these are not physical-device benchmarks.
+Production build, TypeScript checks and twenty-four capability, gesture, particle, architecture, and coding-scene tests pass. Chromium QA covers EN/RU, 360/390/768/844/1440/1920 px widths, scenario/delivery tabs, node selection, reduced motion, WebGL context loss/restoration, fallback and repeated client navigation. The renderer exposes frame timing through canvas data attributes for local QA; these are not physical-device benchmarks.
 
 The output contains only two static pages, shared assets and self-hosted fonts. Private CV and reference files remain excluded. Append `?effects=off` to review the static visual fallback.
 
@@ -46,7 +46,7 @@ Physical iOS/Android devices and Safari/Firefox must be checked separately befor
 
 ## Interaction details
 
-The coding study renders the entire editor, glyphs, cursor, status chrome, and scrolling phone UI in `coding.frag`. The DOM supplies a localized accessible description. Animation runs automatically while visible and suspends off-screen or when the tab is hidden. Portrait layouts stack the phone above the editor. Reduced motion keeps the scene static, and WebGL failure displays a CSS fallback.
+The coding study renders a perspective workbench and a synchronized Workspace mobile interface in `coding.frag`. The DOM supplies a localized accessible description. Animation runs automatically while visible and suspends off-screen or when the tab is hidden. Portrait layouts stack the phone above the editor. Reduced motion keeps the scene static, and WebGL failure displays a CSS fallback.
 
 Backend scenario tabs update their descriptions, technologies, and architecture diagram without a request console. No API requests are made.
 
@@ -57,3 +57,13 @@ A fixed pool emits outward-moving particles as instanced quads (256 desktop / 12
 The architecture explorer uses typed localized scenario graphs (`src/data/architecture.ts`), CSS Grid cards, and SVG routes measured from node bounds. Mobile cards form a vertical flow with a side gutter for branching. Hover/focus previews nodes; click/tap/Enter/Space pins them. Scenario changes preserve the pinned role. Explanations live below the map; only explicit selections trigger live announcements. Reduced motion disables traveling signals and pulses.
 
 Word-level entrances preserve natural wrapping and stable screen-reader copy. Panel reveals and small scroll depth effects use native scrolling, while reduced motion keeps all content stable and accessible.
+
+## Cinematic coding workbench
+
+`coding-model.ts` drives a 24-second structure → behavior → polish sequence and a continuous reset. Editor edits complete before their light transfers trigger app changes. The illustrative Workspace app assembles three task cards, expands the middle card, completes it, and returns to an updated dashboard. These are shader-rendered illustrations, not a functioning task application or SwiftUI source samples.
+
+`coding-atlas.ts` generates one cached 1024×512 Plex glyph/label atlas and a small deterministic document texture. It includes EN/RU UI labels, uses system font fallbacks if loading fails, and is re-uploaded after WebGL context restoration. Perspective plane projection, beveled rims, glass, shadows, and a shared-element card avoid a full-scene ray march.
+
+Optional inspection uses bounded critically damped tilt. Touch waits for 8px horizontal intent; vertical gestures remain native scrolling. Arrow keys inspect, Enter sends a light pulse, and Escape returns to neutral. Timeline and gestures suspend off-screen or when hidden; reduced motion renders the finished dashboard without animation. No playback buttons are added.
+
+Workbench QA covered both locales, the six listed responsive sizes, mouse/keyboard inspection, build pulses, off-screen suspension, reduced motion, denied font requests, and context loss/restoration. The local Chromium preview reported frame cadence around 16.7 ms with one visible WebGL canvas; this is not a physical-device GPU benchmark. Touch intent is unit-tested, but physical touch testing and Safari/Firefox checks remain outstanding.
