@@ -1,5 +1,4 @@
 import { getScene } from './scene';
-import { subscribe } from './clock';
 import { createDecoder } from './decode';
 import { revealText } from './text-motion';
 import { heroVisibility } from './surface-motion';
@@ -224,24 +223,16 @@ function setup() {
       return;
     }
     const bounds = hero.getBoundingClientRect();
-    const header =
-      document.querySelector('.header')?.getBoundingClientRect().height ?? 72;
-    const coding = document.querySelector<HTMLElement>('[data-coding-region]');
-    scene?.setCodingRegion(coding);
-    const codingBounds = coding?.getBoundingClientRect();
-    const codingVisible = Boolean(
-      codingBounds && codingBounds.bottom > 0 && codingBounds.top < innerHeight,
-    );
     scene?.setScene('intro');
-    scene?.setVisibility(heroVisibility(bounds.bottom, innerHeight, header));
-    // Do not use the next section's midpoint as a renderer shutdown boundary.
-    scene?.setActive(
-      (bounds.bottom > 0 && bounds.top < innerHeight) || codingVisible,
+    scene?.setVisibility(
+      heroVisibility(bounds.bottom, hero.offsetHeight, headerHeight),
     );
+    // Do not use the next section's midpoint as a renderer shutdown boundary.
+    scene?.setActive(bounds.bottom > 0 && bounds.top < innerHeight);
   };
   let scrollPending = false;
   const identity = document.querySelector<HTMLElement>('.identity');
-  let smoothScroll = window.scrollY;
+  let headerHeight = document.querySelector<HTMLElement>('.header')?.offsetHeight ?? 72;
   const motionPanels = [
     ...document.querySelectorAll<HTMLElement>(
       '[data-motion-panel],.craft-stage',
@@ -267,7 +258,13 @@ function setup() {
   );
   motionPanels.forEach((panel) => panelObserver.observe(panel));
   const drawScroll = () => {
-    const progress = Math.min(1.3, smoothScroll / Math.max(1, innerHeight));
+    // The hero height is the stable reference: iOS Safari collapses and
+    // expands its toolbars mid-scroll, so innerHeight would jump the fade.
+    const progress = Math.min(
+      1.3,
+      Math.max(0, window.scrollY) /
+        Math.max(1, identity?.offsetHeight || innerHeight),
+    );
     document.documentElement.style.setProperty(
       '--page-scroll',
       String(progress),
@@ -283,37 +280,6 @@ function setup() {
     if (identity)
       identity.style.setProperty('--profile-shift', `${progress * 32}px`);
     scene?.setScroll(progress);
-    if (!reduced.matches)
-      motionPanels.forEach((panel) => {
-        const r = panel.getBoundingClientRect();
-        if (r.bottom > 0 && r.top < innerHeight)
-          panel.style.setProperty(
-            '--motion-progress',
-            String(
-              Math.max(
-                -1,
-                Math.min(
-                  1,
-                  (innerHeight * 0.5 - r.top - r.height * 0.5) / innerHeight,
-                ),
-              ),
-            ),
-          );
-      });
-  };
-  let stopScroll: (() => void) | undefined;
-  const animateScroll = () => {
-    if (reduced.matches || stopScroll) return;
-    stopScroll = subscribe((dt) => {
-      const difference = window.scrollY - smoothScroll;
-      if (Math.abs(difference) < 0.2) {
-        stopScroll?.();
-        stopScroll = undefined;
-        return;
-      }
-      smoothScroll += difference * Math.min(1, dt * 12);
-      drawScroll();
-    });
   };
   window.addEventListener(
     'scroll',
@@ -324,18 +290,22 @@ function setup() {
         scrollPending = false;
         updateScene();
         updateLanguageLink();
-        animateScroll();
-        if (reduced.matches) {
-          smoothScroll = window.scrollY;
-          scene?.setScroll(0);
-        }
+        // Springs in SurfaceMotion and native momentum scrolling already
+        // smooth the response; an extra JS lerp lagged behind the compositor.
+        drawScroll();
       });
     },
     { signal, passive: true },
   );
+  let lastWidth = window.innerWidth;
   window.addEventListener(
     'resize',
     () => {
+      // iOS Safari fires resize mid-scroll as its toolbars collapse and
+      // expand; vertical-only changes must not rebuild decode spans or maps.
+      if (Math.abs(window.innerWidth - lastWidth) < 1) return;
+      lastWidth = window.innerWidth;
+      headerHeight = document.querySelector<HTMLElement>('.header')?.offsetHeight ?? 72;
       decoder.refresh();
       updateScene();
       drawScroll();
@@ -388,7 +358,6 @@ function setup() {
     ambient.disconnect();
     paragraphObserver.disconnect();
     textObserver.disconnect();
-    stopScroll?.();
     decoder.dispose();
     controller.abort();
     disposers.forEach((d) => d());

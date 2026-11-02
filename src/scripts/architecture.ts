@@ -190,7 +190,18 @@ export function createArchitecture(root: HTMLElement, locale: Locale) {
   document.fonts.ready.then(() => {
     if (!signal.aborted) queueMeasure();
   });
-  window.addEventListener('resize', queueMeasure, { signal });
+  let lastWidth = window.innerWidth;
+  window.addEventListener(
+    'resize',
+    () => {
+      // iOS Safari fires resize mid-scroll as its toolbars collapse and
+      // expand; vertical-only changes must not re-route the whole SVG map.
+      if (Math.abs(window.innerWidth - lastWidth) < 1) return;
+      lastWidth = window.innerWidth;
+      queueMeasure();
+    },
+    { signal },
+  );
   chooseScenario(0);
   return {
     chooseScenario,

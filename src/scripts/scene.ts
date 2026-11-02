@@ -1,5 +1,4 @@
 import fragment from '../shaders/ambient.frag?raw';
-import codingFragment from '../shaders/coding.frag?raw';
 import particleVertex from '../shaders/particles.vert?raw';
 import particleFragment from '../shaders/particles.frag?raw';
 import {
@@ -10,34 +9,21 @@ import {
 } from './hero-model';
 import { theme } from '../data/site';
 import { subscribe } from './clock';
-import { clamp } from './motion';
-import { getCodingAtlas, type CodingAtlas } from './coding-atlas';
-import {
-  codingSceneState,
-  codingRotation,
-  type CodingSceneState,
-  type CodingInspection,
-} from './coding-model';
-import type { Locale } from '../data/site';
+import { clamp, pixelDensity } from './motion';
 import { SurfaceMotion } from './surface-motion';
 const vertex = `#version 300 es\nin vec2 position;void main(){gl_Position=vec4(position,0.,1.);}`;
+/**
+ * The hero canvas lives inside .identity, so iOS scroll compositing moves the
+ * rendered sculpture natively instead of JS chasing scrolled DOM rectangles.
+ */
 export class Scene {
-  private canvas: HTMLCanvasElement;
+  canvas: HTMLCanvasElement;
   private gl: WebGL2RenderingContext | null = null;
   private program: WebGLProgram | null = null;
   private locations: Record<string, WebGLUniformLocation | null> = {};
   private unsubscribe: (() => void) | undefined;
-  private codingProgram: WebGLProgram | null = null;
-  private codingLocations: Record<string, WebGLUniformLocation | null> = {};
-  private codingRegion: HTMLElement | null = null;
-  private codingState: CodingSceneState = codingSceneState(0);
-  private codingInspection: CodingInspection = { x: 0, y: 0, pulseAge: 100 };
-  private codingLocale: Locale = 'en';
-  private atlasTexture: WebGLTexture | null = null;
-  private codeTexture: WebGLTexture | null = null;
-  private atlasGeneration = 0;
-  private atlasReady = false;
-  private editorMatrix = codingRotation(0.025, 0.12, -0.025);
+  private observer: ResizeObserver | undefined;
+  private detachCanvas: AbortController | undefined;
   private particleProgram: WebGLProgram | null = null;
   private particleLocations: Record<string, WebGLUniformLocation | null> = {};
   private triangleVao: WebGLVertexArrayObject | null = null;
@@ -49,10 +35,7 @@ export class Scene {
   private current = 0;
   private start = performance.now();
   private density = 1;
-  private samples = 0;
-  private frameElapsed = 0;
   private totalFrames = 0;
-  private slow = 0;
   private lastDraw = 0;
   private reduced = matchMedia('(prefers-reduced-motion: reduce)');
   private active = true;
@@ -75,16 +58,10 @@ export class Scene {
           !relevant(event.target)
         )
           return;
+        const [x, y, width, height] = this.local(event);
         this.pendingBurst = Math.min(48, this.pendingBurst + 20);
         this.canvas.dataset.input = event.pointerType;
-        this.motion.begin(
-          event.pointerId,
-          event.clientX,
-          event.clientY,
-          event.timeStamp,
-          innerWidth,
-          innerHeight,
-        );
+        this.motion.begin(event.pointerId, x, y, event.timeStamp, width, height);
         this.canvas.dataset.interactions = String(++this.interactions);
         (event.target as Element)
           .closest<HTMLElement>('.identity')
@@ -96,20 +73,18 @@ export class Scene {
       'pointermove',
       (event) => {
         if (this.reduced.matches) return;
-        if (this.motion.holding) {
-          this.motion.move(
-            event.pointerId,
-            event.clientX,
-            event.clientY,
-            event.timeStamp,
-            innerWidth,
-            innerHeight,
-          );
-        } else if (event.pointerType === 'mouse' && relevant(event.target)) {
-          this.motion.hover(
-            (event.clientX / innerWidth) * 2 - 1,
-            1 - (event.clientY / innerHeight) * 2,
-          );
+        if (this.motion.holding || (event.pointerType === 'mouse' && relevant(event.target))) {
+          const [x, y, width, height] = this.local(event);
+          if (this.motion.holding)
+            this.motion.move(
+              event.pointerId,
+              x,
+              y,
+              event.timeStamp,
+              width,
+              height,
+            );
+          else this.motion.hover((x / width) * 2 - 1, 1 - (y / height) * 2);
         }
       },
       { passive: true },
@@ -125,45 +100,84 @@ export class Scene {
       { passive: true },
     );
     window.addEventListener('blur', () => this.motion.cancel());
-    if (new URLSearchParams(location.search).get('effects') !== 'off')
-      this.init();
     window.addEventListener('resize', () => this.resize());
-    canvas.addEventListener('webglcontextlost', (event) => {
-      event.preventDefault();
-      this.unsubscribe?.();
-      this.unsubscribe = undefined;
-      this.gl = null;
-      canvas.dataset.renderer = 'fallback';
-      canvas.style.opacity = '0';
-    });
-    canvas.addEventListener('webglcontextrestored', () => {
-      this.init();
-      canvas.style.opacity = '';
-    });
+    this.watch(canvas);
     this.reduced.addEventListener('change', () => {
       this.motion.cancel();
       this.particles.clear();
       this.pendingBurst = 0;
       this.schedule();
     });
+    if (new URLSearchParams(location.search).get('effects') !== 'off')
+      this.init();
+  }
+  /** Pointers map into the hero canvas' own coordinates, never the viewport. */
+  private local(event: PointerEvent) {
+    const bounds = this.canvas.getBoundingClientRect();
+    return [
+      event.clientX - bounds.left,
+      event.clientY - bounds.top,
+      Math.max(1, bounds.width),
+      Math.max(1, bounds.height),
+    ] as const;
   }
   private cap() {
-    return Math.min(devicePixelRatio || 1, 1.25);
+    return pixelDensity();
+  }
+  private watch(canvas: HTMLCanvasElement) {
+    // Superseded canvases must not keep touching the singleton: WebKit fires
+    // webglcontextlost asynchronously, so a stale listener would murder the
+    // live context right after adopt() swaps the DOM node.
+    this.observer?.disconnect();
+    this.detachCanvas?.abort();
+    this.detachCanvas = new AbortController();
+    const { signal } = this.detachCanvas;
+    this.observer = new ResizeObserver(() => {
+      if (this.canvas === canvas) this.resize();
+    });
+    this.observer.observe(canvas);
+    canvas.addEventListener(
+      'webglcontextlost',
+      (event) => {
+        event.preventDefault();
+        if (this.canvas !== canvas) return;
+        this.unsubscribe?.();
+        this.unsubscribe = undefined;
+        this.gl = null;
+        canvas.dataset.renderer = 'fallback';
+        canvas.style.opacity = '0';
+      },
+      { signal },
+    );
+    canvas.addEventListener(
+      'webglcontextrestored',
+      () => {
+        if (this.canvas !== canvas) return;
+        this.init();
+        canvas.style.opacity = '';
+      },
+      { signal },
+    );
+  }
+  /** Astro swaps the page DOM; a new #scene node is adopted instead of redrawn forever. */
+  adopt(canvas: HTMLCanvasElement) {
+    if (this.canvas === canvas) return;
+    this.canvas = canvas;
+    canvas.dataset.renderer = 'fallback';
+    canvas.style.opacity = '';
+    this.watch(canvas);
+    if (new URLSearchParams(location.search).get('effects') !== 'off')
+      this.init();
   }
   private init() {
-    this.atlasGeneration++;
-    this.atlasReady = false;
-    this.canvas.dataset.codingAtlas = 'loading';
-    this.atlasTexture = null;
-    this.codeTexture = null;
+    this.canvas.dataset.renderer = 'fallback';
+    this.canvas.style.opacity = '';
     this.program = null;
-    this.codingProgram = null;
     this.particleProgram = null;
     this.triangleVao = null;
     this.particleVao = null;
     this.particleBuffer = null;
     this.locations = {};
-    this.codingLocations = {};
     this.particleLocations = {};
     try {
       const gl = this.canvas.getContext('webgl2', {
@@ -215,7 +229,6 @@ export class Scene {
         'time',
         'effectTime',
         'objectMatrix',
-        'scene',
         'accent',
         'background',
         'pointer',
@@ -234,84 +247,6 @@ export class Scene {
         b = rgb(theme.background);
       gl.uniform3f(this.locations.accent, a[0], a[1], a[2]);
       gl.uniform3f(this.locations.background, b[0], b[1], b[2]);
-      const cvs = make(gl.VERTEX_SHADER, vertex),
-        cfs = make(gl.FRAGMENT_SHADER, codingFragment);
-      const cp = gl.createProgram()!;
-      gl.attachShader(cp, cvs);
-      gl.attachShader(cp, cfs);
-      gl.bindAttribLocation(cp, position, 'position');
-      gl.linkProgram(cp);
-      gl.deleteShader(cvs);
-      gl.deleteShader(cfs);
-      if (gl.getProgramParameter(cp, gl.LINK_STATUS)) {
-        this.codingProgram = cp;
-        for (const key of [
-          'resolution',
-          'viewportOrigin',
-          'accent',
-          'background',
-          'sceneTime',
-          'timelineA',
-          'timelineB',
-          'codeState',
-          'inspection',
-          'phoneRotation',
-          'editorRotation',
-          'glyphAtlas',
-          'codeGrid',
-          'atlasReady',
-          'localeIndex',
-        ])
-          this.codingLocations[key] = gl.getUniformLocation(cp, key);
-        gl.useProgram(cp);
-        gl.uniform3f(this.codingLocations.accent, a[0], a[1], a[2]);
-        gl.uniform3f(this.codingLocations.background, b[0], b[1], b[2]);
-      } else {
-        console.warn('Coding visual fallback:', gl.getProgramInfoLog(cp));
-        gl.deleteProgram(cp);
-      }
-      if (this.codingProgram) {
-        // Valid transparent placeholders avoid incomplete samplers while fonts load.
-        this.atlasTexture = gl.createTexture();
-        this.codeTexture = gl.createTexture();
-        for (const [unit, texture] of [
-          [gl.TEXTURE0, this.atlasTexture],
-          [gl.TEXTURE1, this.codeTexture],
-        ] as const) {
-          gl.activeTexture(unit);
-          gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-          gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGBA,
-            1,
-            1,
-            0,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            new Uint8Array(4),
-          );
-        }
-        const generation = this.atlasGeneration;
-        getCodingAtlas()
-          .then((atlas) => {
-            if (
-              this.gl !== gl ||
-              generation !== this.atlasGeneration ||
-              gl.isContextLost()
-            )
-              return;
-            this.uploadCodingAtlas(gl, atlas);
-            this.draw(this.motion.visualTime);
-          })
-          .catch(() => {
-            this.canvas.dataset.codingAtlas = 'fallback';
-          });
-      }
       const pvs = make(gl.VERTEX_SHADER, particleVertex),
         pfs = make(gl.FRAGMENT_SHADER, particleFragment),
         pp = gl.createProgram()!;
@@ -365,62 +300,14 @@ export class Scene {
       this.canvas.style.opacity = '0';
     }
   }
-  private uploadCodingAtlas(gl: WebGL2RenderingContext, atlas: CodingAtlas) {
-    const upload = (unit: number, texture: WebGLTexture) => {
-      gl.activeTexture(unit);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    };
-    this.atlasTexture ??= gl.createTexture();
-    upload(gl.TEXTURE0, this.atlasTexture!);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      atlas.canvas,
-    );
-    this.codeTexture ??= gl.createTexture();
-    upload(gl.TEXTURE1, this.codeTexture!);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.R8,
-      40,
-      24,
-      0,
-      gl.RED,
-      gl.UNSIGNED_BYTE,
-      atlas.code,
-    );
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-    this.atlasReady = true;
-    this.canvas.dataset.codingAtlas = 'ready';
-  }
-  setCodingState(
-    state: CodingSceneState,
-    inspection: CodingInspection,
-    locale: Locale,
-  ) {
-    this.codingState = state;
-    this.codingInspection = inspection;
-    this.codingLocale = locale;
-    if (this.reduced.matches) this.draw(0);
-  }
   private resize() {
-    const gl = this.gl;
-    if (!gl) return;
-    this.density = Math.min(this.density, this.cap());
-    this.canvas.width = Math.round(innerWidth * this.density);
-    this.canvas.height = Math.round(innerHeight * this.density);
+    const gl = this.gl,
+      width = this.canvas.clientWidth,
+      height = this.canvas.clientHeight;
+    if (!gl || !width || !height) return;
+    this.density = this.cap();
+    this.canvas.width = Math.round(width * this.density);
+    this.canvas.height = Math.round(height * this.density);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     this.draw(this.motion.visualTime);
   }
@@ -438,18 +325,7 @@ export class Scene {
   private particleLimit() {
     return (innerWidth < 800 ? 128 : 256) * (this.density < 0.85 ? 0.5 : 1);
   }
-  setCodingRegion(element: HTMLElement | null) {
-    this.codingRegion = element;
-    if (this.reduced.matches) this.draw(0);
-  }
   setScroll(progress: number) {
-    if (!this.reduced.matches) {
-      const delta = Math.abs(progress - this.motion.scroll.target);
-      this.motion.energy.target = Math.min(
-        0.85,
-        this.motion.energy.target + delta * 5,
-      );
-    }
     this.motion.scroll.target = progress;
     if (this.reduced.matches) {
       this.motion.scroll.value = progress;
@@ -488,12 +364,10 @@ export class Scene {
     // Preserve the last frame and accumulated visual time when fully occluded.
     if (!this.active && this.motion.visibility.value < 0.001) return;
     this.lastDraw = 0;
-    this.samples = 0;
-    this.frameElapsed = 0;
-    this.slow = 0;
     this.unsubscribe = subscribe((_, time) => {
       const elapsed = this.lastDraw ? time - this.lastDraw : 1 / 60;
-      if (elapsed < (this.density < 0.85 ? 1 / 30 : 1 / 60) - 0.002) return;
+      // A 60 fps ceiling keeps ProMotion devices from doubling the GPU load.
+      if (elapsed < 1 / 60 - 0.002) return;
       const dt = Math.min(elapsed, 0.08);
       this.lastDraw = time;
       this.current += (this.target - this.current) * Math.min(1, dt * 6);
@@ -505,7 +379,7 @@ export class Scene {
           ? pickSurface(
               this.motion.ripplePoint[0],
               this.motion.ripplePoint[1],
-              innerWidth / innerHeight,
+              this.canvas.clientWidth / this.canvas.clientHeight,
               pose,
               matrix,
             )
@@ -545,26 +419,6 @@ export class Scene {
           this.motion.visibility.value.toFixed(4);
         this.canvas.dataset.holding = String(this.motion.holding);
       }
-
-      this.frameElapsed += elapsed;
-      this.samples++;
-      if (elapsed > 0.025) this.slow++;
-      if (this.samples >= 120) {
-        this.canvas.dataset.frameMs = (
-          (this.frameElapsed / this.samples) *
-          1000
-        ).toFixed(2);
-        this.canvas.dataset.frames = String(this.totalFrames);
-        this.canvas.dataset.density = String(this.density);
-        this.canvas.dataset.rotation = `${this.motion.rotationX.value.toFixed(3)},${this.motion.rotationY.value.toFixed(3)}`;
-        if (this.slow > 65 && this.density > 0.65) {
-          this.density = Math.max(0.65, this.density * 0.8);
-          this.resize();
-        }
-        this.samples = 0;
-        this.frameElapsed = 0;
-        this.slow = 0;
-      }
       this.draw(this.motion.visualTime);
     });
   }
@@ -589,7 +443,6 @@ export class Scene {
       this.canvas.height,
     );
     gl.uniform1f(this.locations.time, reduced ? 0 : time);
-    gl.uniform1f(this.locations.scene, this.current);
     gl.uniform2f(
       this.locations.pointer,
       reduced ? 0 : this.motion.x.value,
@@ -617,6 +470,8 @@ export class Scene {
       reduced ? 0 : Math.max(0, 1 - (performance.now() - this.start) / 1400),
     );
     gl.uniform1f(this.locations.visibility, this.motion.visibility.value);
+    // Full-canvas pass: the section border, the scroll fade and the shader's
+    // own bottom feather replace the old hard scissor cut.
     gl.disable(gl.SCISSOR_TEST);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     const rgb = theme.background
@@ -626,155 +481,46 @@ export class Scene {
     gl.depthMask(true);
     gl.clearDepth(1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    const hero = document.querySelector('.identity')?.getBoundingClientRect();
-    if (hero && hero.bottom > 0 && hero.top < innerHeight) {
-      // The next chapter physically occludes the sculpture, while its fade keeps easing.
-      gl.enable(gl.SCISSOR_TEST);
-      const bottom = Math.min(innerHeight, hero.bottom),
-        top = Math.max(0, hero.top);
-      gl.scissor(
-        0,
-        Math.round((innerHeight - bottom) * this.density),
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.ALWAYS);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    if (!reduced && this.particleProgram && this.particleBuffer) {
+      gl.useProgram(this.particleProgram);
+      gl.bindVertexArray(this.particleVao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.particleBuffer);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.particles.data);
+      gl.uniform2f(
+        this.particleLocations.resolution,
         this.canvas.width,
-        Math.round((bottom - top) * this.density),
+        this.canvas.height,
       );
-      gl.enable(gl.DEPTH_TEST);
-      gl.depthFunc(gl.ALWAYS);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      if (!reduced && this.particleProgram && this.particleBuffer) {
-        gl.useProgram(this.particleProgram);
-        gl.bindVertexArray(this.particleVao);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.particleBuffer);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.particles.data);
-        gl.uniform2f(
-          this.particleLocations.resolution,
-          this.canvas.width,
-          this.canvas.height,
-        );
-        gl.uniform1f(this.particleLocations.effectTime, this.motion.effectTime);
-        gl.uniform1f(this.particleLocations.scroll, this.motion.scroll.value);
-        const entrance = Math.max(
-          0,
-          1 - (performance.now() - this.start) / 1400,
-        );
-        gl.uniform1f(
-          this.particleLocations.visibility,
-          this.motion.visibility.value * Math.min(1, (1 - entrance) / 0.9),
-        );
-        gl.depthFunc(gl.LEQUAL);
-        gl.depthMask(false);
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-        gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.particleLimit());
-        gl.disable(gl.BLEND);
-        gl.depthMask(true);
-        gl.bindVertexArray(this.triangleVao);
-      }
-      gl.disable(gl.DEPTH_TEST);
-      gl.disable(gl.SCISSOR_TEST);
+      gl.uniform1f(this.particleLocations.effectTime, this.motion.effectTime);
+      gl.uniform1f(this.particleLocations.scroll, this.motion.scroll.value);
+      const entrance = Math.max(
+        0,
+        1 - (performance.now() - this.start) / 1400,
+      );
+      gl.uniform1f(
+        this.particleLocations.visibility,
+        this.motion.visibility.value * Math.min(1, (1 - entrance) / 0.9),
+      );
+      gl.depthFunc(gl.LEQUAL);
+      gl.depthMask(false);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.particleLimit());
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+      gl.bindVertexArray(this.triangleVao);
     }
-    if (
-      this.codingRegion &&
-      this.codingProgram &&
-      this.canvas.dataset.codingAtlas !== 'fallback'
-    ) {
-      const r = this.codingRegion.getBoundingClientRect(),
-        d = this.density;
-      if (r.bottom > 0 && r.top < innerHeight) {
-        gl.enable(gl.SCISSOR_TEST);
-        gl.scissor(
-          Math.round(r.left * d),
-          Math.max(0, Math.round((innerHeight - r.bottom) * d)),
-          Math.round(r.width * d),
-          Math.round(
-            (Math.min(innerHeight, r.bottom) - Math.max(0, r.top)) * d,
-          ),
-        );
-        gl.viewport(
-          Math.round(r.left * d),
-          Math.round((innerHeight - r.bottom) * d),
-          Math.round(r.width * d),
-          Math.round(r.height * d),
-        );
-        gl.disable(gl.DEPTH_TEST);
-        gl.bindVertexArray(this.triangleVao);
-        gl.useProgram(this.codingProgram);
-        gl.uniform2f(
-          this.codingLocations.resolution,
-          r.width * d,
-          r.height * d,
-        );
-        gl.uniform2f(
-          this.codingLocations.viewportOrigin,
-          Math.round(r.left * d),
-          Math.round((innerHeight - r.bottom) * d),
-        );
-        const state = this.reduced.matches
-          ? codingSceneState(21, true)
-          : this.codingState;
-        const input = this.reduced.matches
-          ? { x: 0, y: 0, pulseAge: 100 }
-          : this.codingInspection;
-        gl.uniform1f(this.codingLocations.sceneTime, state.time);
-        gl.uniform4f(
-          this.codingLocations.timelineA,
-          state.assembly,
-          state.detail,
-          state.completion,
-          state.reset,
-        );
-        gl.uniform4f(
-          this.codingLocations.timelineB,
-          state.editorReveal,
-          state.signal,
-          state.navigation,
-          0,
-        );
-        gl.uniform3f(
-          this.codingLocations.codeState,
-          state.codeFrom,
-          state.codeTo,
-          state.codeBlend,
-        );
-        gl.uniform3f(
-          this.codingLocations.inspection,
-          input.x,
-          input.y,
-          input.pulseAge,
-        );
-        gl.uniformMatrix3fv(
-          this.codingLocations.phoneRotation,
-          false,
-          codingRotation(-0.025 + input.x, -0.12 + input.y, 0.015),
-        );
-        gl.uniformMatrix3fv(
-          this.codingLocations.editorRotation,
-          false,
-          this.editorMatrix,
-        );
-        gl.uniform1i(
-          this.codingLocations.localeIndex,
-          this.codingLocale === 'ru' ? 1 : 0,
-        );
-        gl.uniform1f(this.codingLocations.atlasReady, this.atlasReady ? 1 : 0);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.atlasTexture);
-        gl.uniform1i(this.codingLocations.glyphAtlas, 0);
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, this.codeTexture);
-        gl.uniform1i(this.codingLocations.codeGrid, 1);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.disable(gl.SCISSOR_TEST);
-        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-      }
-    }
+    gl.disable(gl.DEPTH_TEST);
   }
 }
 let instance: Scene | undefined;
 export function getScene() {
-  if (!instance) {
-    const canvas = document.querySelector<HTMLCanvasElement>('#scene');
-    if (canvas) instance = new Scene(canvas);
-  }
+  const canvas = document.querySelector<HTMLCanvasElement>('#scene');
+  if (!canvas) return instance;
+  if (!instance) instance = new Scene(canvas);
+  else if (instance.canvas !== canvas) instance.adopt(canvas);
   return instance;
 }

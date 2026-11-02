@@ -112,13 +112,35 @@ button {
   outline: none;
 }
 #scene {
-  position: fixed;
+  position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.8;
+  /* The canvas scrolls inside .identity; a feathered lower edge replaces the
+     old scissor cut where the section meets the next chapter. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 84%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 84%,
+    transparent 100%
+  );
+}
+.coding-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  display: block;
 }
 .section {
   position: relative;
@@ -551,10 +573,7 @@ h1 {
 .brand-lowercase {
   text-transform: none;
 }
-/* Personal-space redesign: the shader is the centerpiece, not a background texture. */
-#scene {
-  opacity: 1;
-}
+/* The shader is the centerpiece, not a background texture. */
 .identity {
   height: calc(100svh - 90px);
   min-height: 650px;
@@ -2272,8 +2291,8 @@ html[lang='ru'] .identity h1 {
   display: none;
 }
 :is(
-    body:has(#scene[data-renderer='fallback']),
-    body:has(#scene[data-coding-atlas='fallback'])
+    body:has(.coding-canvas[data-renderer='fallback']),
+    body:has(.coding-canvas[data-coding-atlas='fallback'])
   )
   .coding-fallback {
   display: grid;
@@ -2384,8 +2403,8 @@ html[lang='ru'] .identity h1 {
     height: 760px;
   }
   :is(
-      body:has(#scene[data-renderer='fallback']),
-      body:has(#scene[data-coding-atlas='fallback'])
+      body:has(.coding-canvas[data-renderer='fallback']),
+      body:has(.coding-canvas[data-coding-atlas='fallback'])
     )
     .coding-fallback {
     grid-template-columns: 1fr;
@@ -2414,8 +2433,8 @@ html[lang='ru'] .identity h1 {
     height: 500px;
   }
   :is(
-      body:has(#scene[data-renderer='fallback']),
-      body:has(#scene[data-coding-atlas='fallback'])
+      body:has(.coding-canvas[data-renderer='fallback']),
+      body:has(.coding-canvas[data-coding-atlas='fallback'])
     )
     .coding-fallback {
     grid-template-columns: 1.2fr 1fr;

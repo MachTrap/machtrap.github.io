@@ -38,3 +38,11 @@ export function stepSpring(
 export function impulse(state: Spring, amount: number, limit = 8) {
   state.velocity = clamp(state.velocity + amount, -limit, limit);
 }
+/**
+ * Conservative pixel density for raymarched canvases. Phones render at one CSS
+ * pixel per sample so scroll-linked redraws stay inside the frame budget.
+ */
+export function pixelDensity() {
+  const mobile = matchMedia('(max-width: 800px)').matches;
+  return Math.min(devicePixelRatio || 1, mobile ? 1 : 1.25);
+}

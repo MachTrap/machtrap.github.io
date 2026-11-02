@@ -59,7 +59,7 @@ const selected = graph.nodes[2];
         </div>
       </div>
     </div>
-    <div id="coding" class="coding-experience" data-motion-panel>
+    <div id="coding" class="coding-experience">
       <div class="coding-topline">
         <span class="micro" data-decode>
           {c.demoLabel}
@@ -79,6 +79,7 @@ const selected = graph.nodes[2];
             : 'Интерактивная иллюстрация: изменения в редакторе создают и дорабатывают мобильное приложение с задачами.'
         }
       >
+        <canvas class="coding-canvas" aria-hidden="true"></canvas>
         <div class="coding-fallback" aria-hidden="true">
           <div class="fallback-editor">
             <span>workspace.view</span>

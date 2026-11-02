@@ -8,6 +8,7 @@ const c = copy[lang];
 
 <Layout lang={lang}>
   <section class="identity section" data-scene="intro" data-visual="hero">
+    <canvas id="scene" aria-hidden="true" transition:persist="scene"></canvas>
     <div class="identity-profile">
       <span class="micro" data-decode>
         {c.introLabel}

@@ -2,7 +2,6 @@
 precision highp float;
 out vec4 color;
 uniform vec2 resolution;
-uniform vec2 viewportOrigin;
 uniform vec3 accent;
 uniform vec3 background;
 uniform float sceneTime;
@@ -90,10 +89,20 @@ vec3 editorSurface(vec2 p,vec2 halfSize,bool portrait){
  base+=IVORY*.55*label(q,vec2(.065,.044),portrait?.085:.065,12,halfSize.y/halfSize.x);
  base+=accent*rounded(p,vec2(-halfSize.x*.93,halfSize.y*.91),vec2(.009),.004,pixel)*.6;
  if(q.y>.18&&q.y<.91){
+  // One document evaluation whenever no crossfade runs; the dual layer only
+  // costs GPU time during the brief blend windows.
   float blend=codeState.z;
-  vec3 oldDoc=documentLayer(q+vec2(0.,blend*.02),halfSize,int(codeState.x),codeState.x==codeState.y?timelineB.x:1.,portrait);
-  vec3 newDoc=documentLayer(q-vec2(0.,(1.-blend)*.02),halfSize,int(codeState.y),timelineB.x,portrait);
-  base+=mix(oldDoc,newDoc,blend);
+  vec3 doc;
+  if(blend<.001)
+   doc=documentLayer(q,halfSize,int(codeState.x),codeState.x==codeState.y?timelineB.x:1.,portrait);
+  else if(blend>.999)
+   doc=documentLayer(q,halfSize,int(codeState.y),timelineB.x,portrait);
+  else
+   doc=mix(
+    documentLayer(q+vec2(0.,blend*.02),halfSize,int(codeState.x),1.,portrait),
+    documentLayer(q-vec2(0.,(1.-blend)*.02),halfSize,int(codeState.y),timelineB.x,portrait),
+    blend);
+  base+=doc;
   float rail=1.-smoothstep(.0004,.0017,abs(q.x-.075));base+=accent*rail*.08;
  }
  float status=step(.955,q.y);base=mix(base,background+accent*.035,status);
@@ -114,60 +123,72 @@ vec3 application(vec2 s,float pixel){
  vec3 col=background+vec3(.018,.027,.022);
  col+=accent*exp(-length(s-vec2(.1,.1))*3.)*.035;
  float dashboard=1.-detail*.9;
- col+=IVORY*label(s,vec2(.17,.09),.062,5,ratio)*detail;
- vec2 back=vec2(s.x,s.y*ratio);
- float arrow=min(line(back,vec2(.12,.12*ratio),vec2(.09,.135*ratio)),line(back,vec2(.09,.135*ratio),vec2(.12,.15*ratio)));
- col+=accent*exp(-arrow*350.)*detail*.7;
+ if(detail>0.){
+  col+=IVORY*label(s,vec2(.17,.09),.062,5,ratio)*detail;
+  vec2 back=vec2(s.x,s.y*ratio);
+  float arrow=min(line(back,vec2(.12,.12*ratio),vec2(.09,.135*ratio)),line(back,vec2(.09,.135*ratio),vec2(.12,.15*ratio)));
+  col+=accent*exp(-arrow*350.)*detail*.7;
+ }
  float ready=.3+.7*smoothstep(.08,.30,assembly);
  col+=IVORY*label(s,vec2(.09,.09),.071,0,ratio)*ready*(1.-detail);
  col+=IVORY*.37*label(s,vec2(.09,.16),.035,8,ratio)*ready*(1.-detail);
  vec2 physical=s*vec2(1.04,2.28);
  float summary=smoothstep(.20,.50,assembly)*dashboard;
- col+=accent*ring(physical,vec2(.25,.29)*vec2(1.04,2.28),.165,.666+.334*complete,pixel)*summary*.8;
  float oldStatus=1.-smoothstep(.80,.92,complete),newStatus=smoothstep(.92,1.,complete);
- float count=label(s,vec2(.16,.271),.048,14,ratio)*oldStatus+label(s,vec2(.16,.271),.048,15,ratio)*newStatus;
- col+=IVORY*count*summary;
- col+=IVORY*.7*label(s,vec2(.48,.25),.048,1,ratio)*summary;
- col+=accent*.8*(label(s,vec2(.48,.305),.039,6,ratio)*oldStatus+label(s,vec2(.48,.305),.039,7,ratio)*newStatus)*summary;
+ if(summary>0.){
+  col+=accent*ring(physical,vec2(.25,.29)*vec2(1.04,2.28),.165,.666+.334*complete,pixel)*summary*.8;
+  float count=label(s,vec2(.16,.271),.048,14,ratio)*oldStatus+label(s,vec2(.16,.271),.048,15,ratio)*newStatus;
+  col+=IVORY*count*summary;
+  col+=IVORY*.7*label(s,vec2(.48,.25),.048,1,ratio)*summary;
+  col+=accent*.8*(label(s,vec2(.48,.305),.039,6,ratio)*oldStatus+label(s,vec2(.48,.305),.039,7,ratio)*newStatus)*summary;
+ }
  // The first and last tasks stay on the dashboard; the active middle card is shared with detail.
- for(int i=0;i<3;i++){
-  if(i==1)continue;
-  float y=.43+float(i)*.135;
-  float appear=smoothstep(.35+float(i)*.09,.62+float(i)*.09,assembly)*dashboard;
-  float card=rounded(s,vec2(.5,y+.055),vec2(.42,.055),.018,pixel);
-  col=mix(col,background+accent*.045,card*appear);
-  col+=IVORY*.75*label(s,vec2(.22,y+.025),.045,i+2,ratio)*appear;
-  vec2 center=vec2(.15,(y+.055)*ratio);
-  float check=line(vec2(s.x,s.y*ratio),center+vec2(-.016,0.),center+vec2(-.003,.014));
-  check=min(check,line(vec2(s.x,s.y*ratio),center+vec2(-.003,.014),center+vec2(.025,-.018)));
-  col+=accent*exp(-check*300.)*.7*appear;
+ if(assembly>.35){
+  for(int i=0;i<3;i++){
+   if(i==1)continue;
+   float y=.43+float(i)*.135;
+   float appear=smoothstep(.35+float(i)*.09,.62+float(i)*.09,assembly)*dashboard;
+   float card=rounded(s,vec2(.5,y+.055),vec2(.42,.055),.018,pixel);
+   col=mix(col,background+accent*.045,card*appear);
+   col+=IVORY*.75*label(s,vec2(.22,y+.025),.045,i+2,ratio)*appear;
+   vec2 center=vec2(.15,(y+.055)*ratio);
+   float check=line(vec2(s.x,s.y*ratio),center+vec2(-.016,0.),center+vec2(-.003,.014));
+   check=min(check,line(vec2(s.x,s.y*ratio),center+vec2(-.003,.014),center+vec2(.025,-.018)));
+   col+=accent*exp(-check*300.)*.7*appear;
+  }
  }
- float selected=smoothstep(.40,.72,assembly);
- vec2 top=mix(vec2(.08,.565),vec2(.08,.285),detail),size=mix(vec2(.84,.11),vec2(.84,.48),detail);
- float surface=rounded(s,top+size*.5,size*.5,.018,pixel);
- col=mix(col,background+accent*(.06+detail*.025),surface*selected);
- float border=abs(box(s-top-size*.5,size*.5,.018));
- col+=accent*exp(-border*600.)*.18*selected;
- vec2 heading=mix(vec2(.22,.59),vec2(.15,.335),detail);
- col+=IVORY*label(s,heading,mix(.045,.056,detail),3,ratio)*selected;
- float icon=1.-smoothstep(pixel,pixel*2.,abs(length((s-vec2(.15,.62))*vec2(1.,ratio))-.022));
- col+=accent*icon*(.6-complete*.4)*(1.-detail)*selected;
- vec2 checkCenter=vec2(.15,.62*ratio),cp=vec2(s.x,s.y*ratio);
- float check=min(line(cp,checkCenter+vec2(-.014,0.),checkCenter+vec2(-.002,.012)),line(cp,checkCenter+vec2(-.002,.012),checkCenter+vec2(.022,-.016)));
- col+=accent*exp(-check*350.)*.7*complete*(1.-detail)*selected;
- col+=IVORY*.8*label(s,vec2(.15,.425),.037,8,ratio)*detail;
- float bar=rounded(s,vec2(.5,.573),vec2(.35,.006),.006,pixel);
- col+=accent*bar*.12*detail;
- float fill=rounded(s,vec2(.15+.35*(.12+.88*complete),.573),vec2(.35*(.12+.88*complete),.006),.006,pixel);
- col+=accent*fill*.75*detail;
- col+=accent*(label(s,vec2(.15,.62),.046,6,ratio)*oldStatus+label(s,vec2(.15,.62),.046,7,ratio)*newStatus)*detail;
+ if(assembly>.4){
+  float selected=smoothstep(.40,.72,assembly);
+  vec2 top=mix(vec2(.08,.565),vec2(.08,.285),detail),size=mix(vec2(.84,.11),vec2(.84,.48),detail);
+  float surface=rounded(s,top+size*.5,size*.5,.018,pixel);
+  col=mix(col,background+accent*(.06+detail*.025),surface*selected);
+  float border=abs(box(s-top-size*.5,size*.5,.018));
+  col+=accent*exp(-border*600.)*.18*selected;
+  vec2 heading=mix(vec2(.22,.59),vec2(.15,.335),detail);
+  col+=IVORY*label(s,heading,mix(.045,.056,detail),3,ratio)*selected;
+  float icon=1.-smoothstep(pixel,pixel*2.,abs(length((s-vec2(.15,.62))*vec2(1.,ratio))-.022));
+  col+=accent*icon*(.6-complete*.4)*(1.-detail)*selected;
+  vec2 checkCenter=vec2(.15,.62*ratio),cp=vec2(s.x,s.y*ratio);
+  float check=min(line(cp,checkCenter+vec2(-.014,0.),checkCenter+vec2(-.002,.012)),line(cp,checkCenter+vec2(-.002,.012),checkCenter+vec2(.022,-.016)));
+  col+=accent*exp(-check*350.)*.7*complete*(1.-detail)*selected;
+ }
+ if(detail>0.){
+  col+=IVORY*.8*label(s,vec2(.15,.425),.037,8,ratio)*detail;
+  float bar=rounded(s,vec2(.5,.573),vec2(.35,.006),.006,pixel);
+  col+=accent*bar*.12*detail;
+  float fill=rounded(s,vec2(.15+.35*(.12+.88*complete),.573),vec2(.35*(.12+.88*complete),.006),.006,pixel);
+  col+=accent*fill*.75*detail;
+  col+=accent*(label(s,vec2(.15,.62),.046,6,ratio)*oldStatus+label(s,vec2(.15,.62),.046,7,ratio)*newStatus)*detail;
+ }
  // Three restrained navigation glyphs, tied to the final polish stage.
- for(int i=0;i<3;i++){
-  vec2 p=vec2(s.x,s.y*ratio),c=vec2(.23+float(i)*.27,.905*ratio);
-  float d=i==0?abs(box(p-c,vec2(.025),.006)):i==1?abs(length(p-c)-.027):min(line(p,c+vec2(-.025,-.02),c+vec2(.025,-.02)),line(p,c+vec2(-.025,.02),c+vec2(.025,.02)));
-  col+=accent*exp(-d*330.)*(i==0?.65:.25)*smoothstep(.4,.8,assembly);
+ if(assembly>.4){
+  for(int i=0;i<3;i++){
+   vec2 p=vec2(s.x,s.y*ratio),c=vec2(.23+float(i)*.27,.905*ratio);
+   float d=i==0?abs(box(p-c,vec2(.025),.006)):i==1?abs(length(p-c)-.027):min(line(p,c+vec2(-.025,-.02),c+vec2(.025,-.02)),line(p,c+vec2(-.025,.02),c+vec2(.025,.02)));
+   col+=accent*exp(-d*330.)*(i==0?.65:.25)*smoothstep(.4,.8,assembly);
+  }
  }
- col+=accent*.05*exp(-pow((s.x-.5)*8.,2.))*timelineB.z*step(.86,s.y);
+ if(timelineB.z>0.)col+=accent*.05*exp(-pow((s.x-.5)*8.,2.))*timelineB.z*step(.86,s.y);
  return col;
 }
 vec3 phoneSurface(vec2 p){
@@ -192,7 +213,7 @@ vec3 phoneSurface(vec2 p){
 }
 vec2 curve(vec2 a,vec2 b,float t){vec2 control=(a+b)*.5+vec2(0.,.15);return mix(mix(a,control,t),mix(control,b,t),t);}
 void main(){
- vec2 uv=(gl_FragCoord.xy-viewportOrigin)/resolution;
+ vec2 uv=gl_FragCoord.xy/resolution;
  float aspect=resolution.x/resolution.y;bool portrait=aspect<1.35;
  float compositionScale=portrait?1.:min(1.,aspect/2.);
  vec2 p=(uv*2.-1.)*vec2(aspect,1.)/compositionScale;

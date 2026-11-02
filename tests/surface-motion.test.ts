@@ -83,3 +83,18 @@ test('resuming preserves the accumulated visual phase', () => {
   m.cancel();
   assert.ok(m.visualTime > phase);
 });
+test('overscroll bounds clamp cleanly and the fade has no discontinuities', () => {
+  // iOS rubber-band overscroll reports negative positions: never above 1 or below 0.
+  assert.equal(heroVisibility(-400, 900, 90), 0);
+  assert.equal(heroVisibility(0, 900, 90), 0);
+  assert.equal(heroVisibility(900, 900, 90), 1);
+  assert.equal(heroVisibility(2000, 900, 90), 1);
+  let previous = 1;
+  for (let bottom = 900; bottom >= 90; bottom -= 10) {
+    const value = heroVisibility(bottom, 900, 90);
+    assert.ok(value <= previous + 1e-9);
+    assert.ok(value >= 0 && value <= 1);
+    previous = value;
+  }
+  assert.equal(previous, 0);
+});

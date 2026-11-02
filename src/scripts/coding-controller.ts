@@ -1,7 +1,7 @@
 import { subscribe } from './clock';
 import { spring, stepSpring, clamp } from './motion';
 import { codingSceneState, touchIntent } from './coding-model';
-import { getScene } from './scene';
+import { getCodingCanvas } from './coding-canvas';
 import type { Locale } from '../data/site';
 let elapsed = 0;
 export function createCodingScene(region: HTMLElement, locale: Locale) {
@@ -21,13 +21,33 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
     intent: 'pending' | 'inspect' | 'scroll';
     moved: boolean;
   } | null = null;
+  const canvas = region.querySelector<HTMLCanvasElement>('.coding-canvas');
+  const stage = canvas ? getCodingCanvas(canvas) : null;
+  let lastPhase = '';
+  let lastTilt = '';
+  let lastPulse = '';
   const render = () => {
     const state = codingSceneState(elapsed, reduced.matches);
-    region.dataset.demoPhase = state.phase.toFixed(3);
-    region.dataset.codingAct = String(state.act);
-    region.dataset.codingTilt = `${x.value.toFixed(4)},${y.value.toFixed(4)}`;
-    region.dataset.codingPulse = pulseAge.toFixed(3);
-    getScene()?.setCodingState(
+    const act = String(state.act);
+    if (region.dataset.codingAct !== act) region.dataset.codingAct = act;
+    // Observability attributes update at ~10 Hz; per-frame dataset writes
+    // would trigger style recalculations while the page scrolls on WebKit.
+    const phase = (Math.round(state.phase * 10) / 10).toFixed(3);
+    if (phase !== lastPhase) {
+      lastPhase = phase;
+      region.dataset.demoPhase = phase;
+    }
+    const tilt = `${x.value.toFixed(3)},${y.value.toFixed(3)}`;
+    if (tilt !== lastTilt) {
+      lastTilt = tilt;
+      region.dataset.codingTilt = tilt;
+    }
+    const pulse = (Math.round(pulseAge * 4) / 4).toFixed(3);
+    if (pulse !== lastPulse) {
+      lastPulse = pulse;
+      region.dataset.codingPulse = pulse;
+    }
+    stage?.setCodingState(
       state,
       {
         x: reduced.matches ? 0 : x.value,
@@ -48,8 +68,8 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
     if (
       !visible ||
       reduced.matches ||
-      document.querySelector<HTMLElement>('#scene')?.dataset.renderer !==
-        'webgl2'
+      !canvas ||
+      canvas.dataset.renderer !== 'webgl2'
     ) {
       if (reduced.matches) {
         x.value = y.value = 0;
@@ -58,9 +78,13 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
       render();
       return;
     }
-    stop = subscribe((dt) => {
+    let lastRender = 0;
+    stop = subscribe((dt, time) => {
       elapsed += dt;
       pulseAge += dt;
+      // A 60 fps ceiling: ProMotion panels otherwise redraw the shader at 120.
+      if (time - lastRender < 1 / 60 - 0.002) return;
+      lastRender = time;
       stepSpring(x, dt, 65, 18);
       stepSpring(y, dt, 65, 18);
       render();
@@ -86,8 +110,9 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
     'pointermove',
     (event) => {
       if (reduced.matches) return;
-      const bounds = region.getBoundingClientRect();
       if (drag && drag.id === event.pointerId) {
+        // A vertical gesture belongs to page scrolling: no layout reads at all.
+        if (drag.intent === 'scroll') return;
         const dx = event.clientX - drag.x,
           dy = event.clientY - drag.y;
         if (Math.hypot(dx, dy) >= 8) drag.moved = true;
@@ -102,6 +127,7 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
             region.setPointerCapture(event.pointerId);
         }
         if (drag.intent === 'inspect') {
+          const bounds = region.getBoundingClientRect();
           y.target = clamp(
             (dx / Math.max(180, bounds.width)) * 0.9,
             -Math.PI / 15,
@@ -114,6 +140,7 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
           );
         }
       } else if (event.pointerType === 'mouse') {
+        const bounds = region.getBoundingClientRect();
         y.target =
           clamp((event.clientX - bounds.left) / bounds.width - 0.5, -0.5, 0.5) *
           0.075;
@@ -165,16 +192,6 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
   );
   region.addEventListener('blur', reset, { signal });
   window.addEventListener('blur', reset, { signal });
-  const observer = new IntersectionObserver(
-    (entries) => {
-      visible = entries[0].isIntersecting;
-      if (!visible) reset();
-      schedule();
-    },
-    { threshold: 0.08 },
-  );
-  observer.observe(region);
-  const canvas = document.querySelector('#scene');
   canvas?.addEventListener(
     'webglcontextlost',
     () => {
@@ -185,6 +202,15 @@ export function createCodingScene(region: HTMLElement, locale: Locale) {
     { signal },
   );
   canvas?.addEventListener('webglcontextrestored', schedule, { signal });
+  const observer = new IntersectionObserver(
+    (entries) => {
+      visible = entries[0].isIntersecting;
+      if (!visible) reset();
+      schedule();
+    },
+    { threshold: 0.08 },
+  );
+  observer.observe(region);
   const onReduced = () => {
     reset();
     schedule();

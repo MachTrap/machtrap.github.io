@@ -33,15 +33,16 @@ void main(){
  bool portrait=aspect<1.;
  vec2 p=(2.*gl_FragCoord.xy-resolution)/resolution.y;
  p-=vec2(portrait?.02:aspect*.25,portrait?.27:.12);
- p.y+=scroll*.1;p*=(portrait?1.8:1.)*(1.+min(scroll,1.4)*.12);
+ p.y-=scroll*.04;p*=(portrait?1.8:1.)*(1.+min(scroll,1.4)*.12);
  vec3 origin=vec3(0,0,4.6),ray=normalize(vec3(p,-2.6)),point=origin;
  float travel=0.,nearest=1.;bool hit=false;
  float b=dot(origin,ray),disc=b*b-(dot(origin,origin)-2.25);
+ int maxSteps=portrait?52:72;float hitEps=portrait?.0012:.0008;
  if(disc>=0.){
   float root=sqrt(disc);travel=max(0.,-b-root);float end=-b+root;
-  for(int i=0;i<72;i++){
+  for(int i=0;i<maxSteps;i++){
    point=origin+ray*travel;float distance=surface(point);nearest=min(nearest,abs(distance));
-   if(distance<.0008){hit=true;break;}travel+=distance*.65;if(travel>end)break;
+   if(distance<hitEps){hit=true;break;}travel+=distance*.65;if(travel>end)break;
   }
  }
  vec3 result=background+accent*exp(-dot(p,p)*1.5)*.012;
@@ -76,6 +77,9 @@ void main(){
  float mark=(1.-smoothstep(.004,.013,d.x))*step(d.y,.025)+(1.-smoothstep(.004,.013,d.y))*step(d.x,.025);
  result+=accent*mark*step(.9,hash(floor(cells)))*.025;
  result+=(hash(gl_FragCoord.xy)-.5)*.0015;
- result=mix(background,result,visibility*smoothstep(0.,.9,1.-entrance));
+ // The lower canvas edge dissolves as the next chapter scrolls in instead of
+ // meeting a hard trim line; the height-locked canvas cannot show a black bar.
+ float bottomFade=(1.-smoothstep(0.,.14,uv.y))*smoothstep(.12,.55,scroll);
+ result=mix(background,result,visibility*smoothstep(0.,.9,1.-entrance)*(1.-bottomFade));
  color=vec4(result,1.);
 }

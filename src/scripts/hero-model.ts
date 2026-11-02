@@ -76,7 +76,7 @@ export function project(
     scale = portrait ? 1.8 : 1;
   let x = (point[0] * 2.6) / (4.6 - point[2]) / (zoom * scale),
     y = (point[1] * 2.6) / (4.6 - point[2]) / (zoom * scale);
-  y -= scroll * 0.1;
+  y -= scroll * 0.04;
   x += portrait ? 0.02 : aspect * 0.25;
   y += portrait ? 0.27 : 0.12;
   return [x / aspect, y];

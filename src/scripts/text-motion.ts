@@ -23,21 +23,31 @@ export function revealText(element: HTMLElement, reduced: boolean) {
     element.replaceChildren(stable, visual);
   }
   const words = [...element.querySelectorAll<HTMLElement>('.text-word')];
+  // A simultaneous offscreen blur pass per word is unaffordable mid-scroll
+  // on phones; coarse pointers and narrow viewports use a plain rise.
+  const light =
+    matchMedia('(pointer: coarse)').matches ||
+    matchMedia('(max-width: 800px)').matches;
   words.forEach((word, i) => {
     word.getAnimations().forEach((a) => a.cancel());
     word.animate(
-      [
-        {
-          opacity: 0,
-          transform: 'translateY(.8em) rotateX(-18deg)',
-          filter: 'blur(4px)',
-        },
-        {
-          opacity: 1,
-          transform: 'translateY(0) rotateX(0)',
-          filter: 'blur(0)',
-        },
-      ],
+      light
+        ? [
+            { opacity: 0, transform: 'translateY(.65em)' },
+            { opacity: 1, transform: 'translateY(0)' },
+          ]
+        : [
+            {
+              opacity: 0,
+              transform: 'translateY(.8em) rotateX(-18deg)',
+              filter: 'blur(4px)',
+            },
+            {
+              opacity: 1,
+              transform: 'translateY(0) rotateX(0)',
+              filter: 'blur(0)',
+            },
+          ],
       {
         duration: 650,
         delay: Math.min(i * 22, 270),

@@ -128,10 +128,21 @@ export class SurfaceMotion {
     }
   }
 }
+/**
+ * Dissolve progress for the hero sculpture. Scaled against the hero's own
+ * height (never the dynamic mobile viewport), so iOS toolbar changes cannot
+ * jump the fade, and eased so dissolution starts with the first scrolled
+ * pixel and completes exactly where the section meets the header line.
+ */
 export function heroVisibility(
   bottom: number,
-  viewportHeight: number,
+  height: number,
   headerHeight: number,
 ) {
-  return clamp((bottom - headerHeight) / (viewportHeight - headerHeight), 0, 1);
+  const progress = clamp(
+    (bottom - headerHeight) / Math.max(1, height - headerHeight),
+    0,
+    1,
+  );
+  return progress * progress;
 }

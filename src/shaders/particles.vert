@@ -14,7 +14,7 @@ vec3 projectPoint(vec3 p){
  float aspect=resolution.x/resolution.y;bool portrait=aspect<1.;
  float zoom=(1.+min(scroll,1.4)*.12)*(portrait?1.8:1.);
  vec2 screen=p.xy*2.6/(4.6-p.z)/zoom;
- screen.y-=scroll*.1;screen+=vec2(portrait?.02:aspect*.25,portrait?.27:.12);
+ screen.y+=scroll*.04;screen+=vec2(portrait?.02:aspect*.25,portrait?.27:.12);
  return vec3(screen.x/aspect,screen.y,(4.6-p.z)/12.);
 }
 void main(){
